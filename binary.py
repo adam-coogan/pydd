@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
-from math import cos, exp, log, pi, sqrt
-from typing import Optional, Union
+from math import pi
+from typing import Optional
 
+import jax.numpy as jnp
+from jax.scipy.special import betainc
 import numpy as np
-from scipy.special import betainc, hyp2f1
-from typing_extensions import Protocol
-
-
-ArrLike = Union[np.ndarray, float]
+from scipy.special import hyp2f1
 
 
 G = 6.67408e-11  # m^3 s^-2 kg^-1
@@ -34,7 +32,7 @@ def get_r_isco(m_1):
 
 
 def get_f_isco(m_1):
-    return sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
+    return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
 
 
 def get_r_s(m_1, rho_s, gamma_s):
@@ -46,20 +44,22 @@ def get_xi(gamma_s):
     return 1 - betainc(gamma_s - 1 / 2, 3 / 2, 1 / 2)
 
 
+def get_dL_iota(dL, iota):
+    return jnp.log((1 + jnp.cos(iota) ** 2) / (2 * dL))
+
+
 def get_c_f(m_1, m_2, rho_s, gamma_s):
-    Lambda = sqrt(m_1 / m_2)
+    Lambda = jnp.sqrt(m_1 / m_2)
     M = m_1 + m_2
     c_gw = 64 * G ** 3 * M * m_1 * m_2 / (5 * C ** 5)
     c_df = (
         8
         * pi
-        * sqrt(G)
-        * m_2
-        * log(Lambda)
-        * rho_s
-        * get_r_s(m_1, rho_s, gamma_s) ** gamma_s
+        * jnp.sqrt(G)
+        * (m_2 / m_1)
+        * jnp.log(Lambda)
+        * (rho_s * get_r_s(m_1, rho_s, gamma_s) ** gamma_s / jnp.sqrt(M))
         * get_xi(gamma_s)
-        / (sqrt(M) * m_1)
     )
     return c_df / c_gw * (G * M / pi ** 2) ** ((11 - 2 * gamma_s) / 6)
 
@@ -78,7 +78,7 @@ def get_f_b(m_1, m_2, gamma_s):
         beta
         * (m_1 / (1e3 * MSUN)) ** (-alpha_1)
         * (m_2 / MSUN) ** alpha_2
-        * (1 + rho * np.log(gamma_s / gamma_r))
+        * (1 + rho * jnp.log(gamma_s / gamma_r))
     )
 
 
@@ -93,7 +93,7 @@ class Binary(ABC):
     def PhiT(self, f, f_c):
         return 2 * pi * f * self.t_to_c(f, f_c) - self.Phi_to_c(f, f_c)
 
-    def psi(self, f, f_c):
+    def Psi(self, f, f_c):
         return 2 * pi * f * self.tT_c - self.Phi_c - pi / 4 - self.PhiT(f, f_c)
 
     def h_0(self, f):
@@ -105,11 +105,11 @@ class Binary(ABC):
             * (G * self.M_chirp) ** (5 / 3)
             * f ** (2 / 3)
             / C ** 4
-            * sqrt(2 * pi / abs(self.d2Phi_dt2(f)))
+            * jnp.sqrt(2 * pi / abs(self.d2Phi_dt2(f)))
         )
 
     def amp_plus(self, f):
-        return self.h_0(f) * exp(self.dL_iota)
+        return self.h_0(f) * jnp.exp(self.dL_iota)
 
     def Phi_to_c(self, f, f_c):
         return self._Phi_to_c_indef(f) - self._Phi_to_c_indef(f_c)
@@ -152,13 +152,8 @@ class VacuumBinary(Binary):
     ):
         M_chirp = get_M_chirp(m_1, m_2)
         tT_c = 0.0 if t_c is None else t_c + dL / C
-        dL_iota = log((1 + cos(iota) ** 2) / (2 * dL))
+        dL_iota = get_dL_iota(dL, iota)
         return cls(M_chirp, Phi_c, tT_c, dL_iota)
-
-
-class ProtoDarkDress(Protocol):
-    c_f: float
-    gamma_s: float
 
 
 class StaticDress(Binary):
@@ -218,7 +213,7 @@ class StaticDress(Binary):
         c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
         M_chirp = get_M_chirp(m_1, m_2)
         tT_c = 0.0 if t_c is None else t_c + dL / C
-        dL_iota = log((1 + cos(iota) ** 2) / (2 * dL))
+        dL_iota = get_dL_iota(dL, iota)
         return cls(gamma_s, c_f, M_chirp, Phi_c, tT_c, dL_iota)
 
 
@@ -350,5 +345,5 @@ class DynamicDress(Binary):
         c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
         M_chirp = get_M_chirp(m_1, m_2)
         tT_c = 0.0 if t_c is None else t_c + dL / C
-        dL_iota = log((1 + cos(iota) ** 2) / (2 * dL))
+        dL_iota = get_dL_iota(dL, iota)
         return cls(gamma_s, c_f, M_chirp, m_2 / m_1, Phi_c, tT_c, dL_iota)
