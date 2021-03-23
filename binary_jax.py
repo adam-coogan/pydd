@@ -1,16 +1,11 @@
-from abc import ABC, abstractmethod
 from math import pi
-from typing import Optional
 from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
 from jax.scipy.special import betainc
-import numpy as np
+from jaxinterp2d import interp2d
 from scipy.special import hyp2f1
-from typing_extensions import Protocol
-
-from interp2d import interp2d
 
 
 G = 6.67408e-11  # m^3 s^-2 kg^-1

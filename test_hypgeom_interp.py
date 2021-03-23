@@ -5,6 +5,11 @@ import numpy.random as np_random
 from binary_jax import get_hypgeom_interps, hypgeom_scipy
 
 
+"""
+TODO: revise. Wrong parameter ranges.
+"""
+
+
 def test_hypgeom_interps(n_samples=10000, far_frac=0.005):
     interp_pos, interp_neg = get_hypgeom_interps(5000, 4950)
     interp_pos_jit, interp_neg_jit = jit(interp_pos), jit(interp_neg)
