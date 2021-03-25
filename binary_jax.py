@@ -1,7 +1,9 @@
+from functools import partial
 from math import pi
 from typing import NamedTuple
 
 import jax
+from jax import jit
 import jax.numpy as jnp
 from jax.scipy.special import betainc
 from jaxinterp2d import interp2d
@@ -41,39 +43,48 @@ class DynamicDress(NamedTuple):
     dL_iota: NamedTuple
 
 
+@jit
 def get_M_chirp(m_1, m_2):
     return (m_1 * m_2) ** (3 / 5) / (m_1 + m_2) ** (1 / 5)
 
 
+@jit
 def get_m_1(M_chirp, q):
     return (1 + q) ** (1 / 5) / q ** (3 / 5) * M_chirp
 
 
+@jit
 def get_m_2(M_chirp, q):
     return (1 + q) ** (1 / 5) * q ** (2 / 5) * M_chirp
 
 
+@jit
 def get_r_isco(m_1):
     return 6 * G * m_1 / C ** 2
 
 
+@jit
 def get_f_isco(m_1):
     return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
 
 
+@jit
 def get_r_s(m_1, rho_s, gamma_s):
     return ((3 - gamma_s) * 0.2 ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
 
 
+@jit
 def get_xi(gamma_s):
     # Could use that I_x(a, b) = 1 - I_{1-x}(b, a)
     return 1 - betainc(gamma_s - 1 / 2, 3 / 2, 1 / 2)
 
 
+@jit
 def get_dL_iota(dL, iota):
     return jnp.log((1 + jnp.cos(iota) ** 2) / (2 * dL))
 
 
+@jit
 def get_c_f(m_1, m_2, rho_s, gamma_s):
     Lambda = jnp.sqrt(m_1 / m_2)
     M = m_1 + m_2
@@ -90,22 +101,27 @@ def get_c_f(m_1, m_2, rho_s, gamma_s):
     return c_df / c_gw * (G * M / pi ** 2) ** ((11 - 2 * gamma_s) / 6)
 
 
+@jit
 def get_f_eq(gamma_s, c_f):
     return c_f ** (3 / (11 - 2 * gamma_s))
 
 
+@jit
 def get_psi_v(M_chirp):
     return 1 / 16 * (C ** 3 / (pi * G * M_chirp)) ** (5 / 3)
 
 
+@partial(jit, static_argnums=(3,))
 def PhiT(f, f_c, params, kind: str):
     return 2 * pi * f * t_to_c(f, f_c, params, kind) - Phi_to_c(f, f_c, params, kind)
 
 
+@partial(jit, static_argnums=(3,))
 def Psi(f, f_c, params, kind: str):
     return 2 * pi * f * params.tT_c - params.Phi_c - pi / 4 - PhiT(f, f_c, params, kind)
 
 
+@partial(jit, static_argnums=(2,))
 def h_0(f, params, kind: str):
     return (
         1
@@ -119,19 +135,23 @@ def h_0(f, params, kind: str):
     )
 
 
+@partial(jit, static_argnums=(2,))
 def amp_plus(f, params, kind: str):
     return h_0(f, params, kind) * jnp.exp(params.dL_iota)
 
 
+@partial(jit, static_argnums=(3,))
 def Phi_to_c(f, f_c, params, kind: str):
     return _Phi_to_c_indef(f, params, kind) - _Phi_to_c_indef(f_c, params, kind)
 
 
+@partial(jit, static_argnums=(3,))
 def t_to_c(f, f_c, params, kind: str):
     return _t_to_c_indef(f, params, kind) - _t_to_c_indef(f_c, params, kind)
 
 
-def _Phi_to_c_indef(f, params, kind):
+@partial(jit, static_argnums=(2,))
+def _Phi_to_c_indef(f, params, kind: str):
     if kind == "v":
         return _Phi_to_c_indef_v(f, params)
     elif kind == "s":
@@ -142,7 +162,8 @@ def _Phi_to_c_indef(f, params, kind):
         raise ValueError("invalid 'kind'")
 
 
-def _t_to_c_indef(f, params, kind):
+@partial(jit, static_argnums=(2,))
+def _t_to_c_indef(f, params, kind: str):
     if kind == "v":
         return _t_to_c_indef_v(f, params)
     elif kind == "s":
@@ -153,7 +174,8 @@ def _t_to_c_indef(f, params, kind):
         raise ValueError("invalid 'kind'")
 
 
-def d2Phi_dt2(f, params, kind):
+@partial(jit, static_argnums=(2,))
+def d2Phi_dt2(f, params, kind: str):
     if kind == "v":
         return d2Phi_dt2_v(f, params)
     elif kind == "s":
@@ -165,14 +187,17 @@ def d2Phi_dt2(f, params, kind):
 
 
 # Vacuum binary
+@jit
 def _Phi_to_c_indef_v(f, params):
     return get_psi_v(params.M_chirp) / f ** (5 / 3)
 
 
+@jit
 def _t_to_c_indef_v(f, params):
     return 5 * get_psi_v(params.M_chirp) / (16 * pi * f ** (8 / 3))
 
 
+@jit
 def d2Phi_dt2_v(f, params):
     return 12 * pi ** 2 * f ** (11 / 3) / (5 * get_psi_v(params.M_chirp))
 
@@ -206,7 +231,6 @@ def get_hypgeom_interps(n_bs=5000, n_zs=4950):
     vals_pos = jnp.array(hypgeom_scipy(b_mg, z_mg))
     vals_neg = jnp.log10(1 - hypgeom_scipy(-b_mg[::-1, :], z_mg))
 
-    log10_abs_zs = jnp.log10(-zs)
     interp_pos = lambda b, z: interp2d(b, jnp.log10(-z), bs, log10_abs_zs, vals_pos)
     interp_neg = lambda b, z: 1 - 10 ** interp2d(
         b, jnp.log10(-z), -bs[::-1], log10_abs_zs, vals_neg
@@ -214,13 +238,13 @@ def get_hypgeom_interps(n_bs=5000, n_zs=4950):
     return interp_pos, interp_neg
 
 
-_interp_pos, _interp_neg = get_hypgeom_interps()
+interp_pos, interp_neg = get_hypgeom_interps()
 
 
-def _restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
+def restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
     # Assumes b is a scalar
     return jax.lax.cond(
-        b > 0, lambda z: _interp_pos(b, z), lambda z: _interp_neg(b, z), z
+        b > 0, lambda z: interp_pos(b, z), lambda z: interp_neg(b, z), z
     )
 
 
@@ -231,19 +255,21 @@ def hypgeom_jax(b, z: jnp.ndarray) -> jnp.ndarray:
     #     f"log10(|z|) max: {jnp.log10(jnp.abs(z)).max()}"
     # )
     return jax.lax.cond(
-        b == 1, lambda z: jnp.log(1 - z) / (-z), lambda z: _restricted_hypgeom(b, z), z
+        b == 1, lambda z: jnp.log(1 - z) / (-z), lambda z: restricted_hypgeom(b, z), z
     )
 
 
 # hypgeom = hypgeom_scipy
-hypgeom = hypgeom_jax
+hypgeom = jit(hypgeom_jax)
 
 
 # Static
+@jit
 def get_th_s(gamma_s):
     return 5 / (11 - 2 * gamma_s)
 
 
+@jit
 def _Phi_to_c_indef_s(f, params):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
@@ -252,6 +278,7 @@ def _Phi_to_c_indef_s(f, params):
     )
 
 
+@jit
 def _t_to_c_indef_s(f, params):
     th = get_th_s(params.gamma_s)
     return (
@@ -262,6 +289,7 @@ def _t_to_c_indef_s(f, params):
     )
 
 
+@jit
 def d2Phi_dt2_s(f, params):
     return (
         12
@@ -292,6 +320,7 @@ def make_static_dress(
 GAMMA_E = 5 / 2
 
 
+@jit
 def get_f_b(params):
     m_1 = (1 + params.q) ** (1 / 5) / params.q ** (3 / 5) * params.M_chirp
     m_2 = (1 + params.q) ** (1 / 5) * params.q ** (2 / 5) * params.M_chirp
@@ -310,14 +339,17 @@ def get_f_b(params):
     )
 
 
+@jit
 def get_th_d():
     return 5 / (2 * GAMMA_E)
 
 
+@jit
 def get_lam(params):
     return (11 - 2 * (params.gamma_s + GAMMA_E)) / 3
 
 
+@jit
 def get_eta(params):
     f_eq = get_f_eq(params.gamma_s, params.c_f)
     f_t = get_f_b(params)
@@ -328,6 +360,7 @@ def get_eta(params):
     )
 
 
+@jit
 def _Phi_to_c_indef_d(f, params):
     f_t = get_f_b(params)
     x = f / f_t
@@ -344,6 +377,7 @@ def _Phi_to_c_indef_d(f, params):
     )
 
 
+@jit
 def _t_to_c_indef_d(f, params):
     f_t = get_f_b(params)
     x = f / f_t
@@ -383,6 +417,7 @@ def _t_to_c_indef_d(f, params):
     return coeff * (term_1 + term_2 + term_3 + term_4)
 
 
+@jit
 def d2Phi_dt2_d(f, params):
     f_t = get_f_b(params)
     x = f / f_t
@@ -412,7 +447,6 @@ def d2Phi_dt2_d(f, params):
     )
 
 
-# OLD
 def make_dynamic_dress(
     m_1,
     m_2,

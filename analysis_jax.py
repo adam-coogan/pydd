@@ -1,3 +1,4 @@
+from functools import partial
 from typing import NamedTuple
 
 from jax import jit
@@ -59,6 +60,7 @@ def simps(f, a, b, N=128, log=True):
         return simps(x_times_f, jnp.log(a), jnp.log(b), N, False)
 
 
+@partial(jit, static_argnums=(2, 5))
 def calculate_SNR(params: NamedTuple, f_c, kind: str, f_l, f_h, n):
     fh = jnp.minimum(f_h, f_c)
     # fs = jnp.geomspace(f_l, fh, n)
@@ -66,6 +68,7 @@ def calculate_SNR(params: NamedTuple, f_c, kind: str, f_l, f_h, n):
     return jnp.sqrt(simps(modh_integrand, f_l, fh, n, True))
 
 
+@partial(jit, static_argnums=(2, 5, 8))
 def calculate_match_unnormd(
     params_h: NamedTuple,
     f_c_h,
@@ -89,6 +92,7 @@ def calculate_match_unnormd(
     return jnp.sqrt(re ** 2 + im ** 2)
 
 
+@partial(jit, static_argnums=(2, 5))
 def loglikelihood(
     params_h: NamedTuple,
     f_c_h,
@@ -137,21 +141,19 @@ def test_SNR_loglikelihood():
     )
     f_c_h = get_f_isco(get_m_1(dd_h.M_chirp, dd_h.q))
 
-    loglikelihood_jit = jit(loglikelihood, static_argnums=(2, 5, 8, 9))
-
     print("SNR(s) = ", calculate_SNR(dd_s, f_c, "d", f_l, f_c, 3000))
     print("SNR(h) = ", calculate_SNR(dd_h, f_c_h, "d", f_l, f_c_h, 3000))
     print(
         "log L(s|s) = ",
-        loglikelihood_jit(dd_s, f_c, "d", dd_s, f_c, "d", f_l, f_c, 3000, 3000),
+        loglikelihood(dd_s, f_c, "d", dd_s, f_c, "d", f_l, f_c),
     )
     print(
         "log L(h|h) = ",
-        loglikelihood_jit(dd_h, f_c_h, "d", dd_h, f_c_h, "d", f_l, f_c_h, 3000, 3000),
+        loglikelihood(dd_h, f_c_h, "d", dd_h, f_c_h, "d", f_l, f_c_h),
     )
     print(
         "log L(h|s) = ",
-        loglikelihood_jit(dd_h, f_c_h, "d", dd_s, f_c, "d", f_l, f_c, 3000, 3000),
+        loglikelihood(dd_h, f_c_h, "d", dd_s, f_c, "d", f_l, f_c),
     )
 
 
