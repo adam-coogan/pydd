@@ -4,7 +4,11 @@ Dark dresses in python, powered by jax.
 
 ## Getting started
 
-Requires jax: `pip install jax jaxlib`.
+First install the dependencies:
 
-Also requires my [jaxinterp2d](https://github.com/adam-coogan/jaxinterp2d/) package.
-Clone it and install with `pip`.
+- jax: `pip install jax jaxlib`.
+- [jaxinterp2d](https://github.com/adam-coogan/jaxinterp2d/): clone the repo and
+  install with `pip install .`.
+
+Then install `pydd` by cloning this repo and installing with `pip install .`.
+Add `-e` to make the install [editable](https://pip.pypa.io/en/stable/cli/pip_install/#install-editable).

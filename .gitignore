@@ -1,5 +1,8 @@
-.idea
-.ipynb_checkpoints
-.python-version
-__pycache__
 .DS_Store
+.python-version
+.ipynb_checkpoints
+.idea
+*__pycache__/
+*.egg-info
+dist/
+build/
