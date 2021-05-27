@@ -88,7 +88,12 @@ def get_f_isco(m_1):
 def get_r_s(m_1, rho_s, gamma_s):
     return ((3 - gamma_s) * 0.2 ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
 
-
+@jit
+def get_rho_s(rho_8, m_1, gamma_s):
+    r_8 = 1e-8*PC
+    m_tilde = ((3-gamma_s)*(0.2)**(3-gamma_s))*m_1/(2*jnp.pi)
+    return (rho_8*r_8**gamma_s/(m_tilde**(gamma_s/3)))**(1/(1-gamma_s/3))
+    
 @jit
 def get_xi(gamma_s):
     # Could use that I_x(a, b) = 1 - I_{1-x}(b, a)
