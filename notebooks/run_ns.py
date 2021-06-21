@@ -98,8 +98,8 @@ def run_ns(dd_s, f_l, base_path, rho_6T_min, rho_6T_max, dM_chirp_abs, gamma_s, 
 @click.command()
 @click.option("--rho_6t", default=0.01)
 @click.option("--gamma_s", default=7 / 3)
-@click.option("--rho_6T_min", default=0.0)
-@click.option("--rho_6t_max", default=0.05)
+@click.option("--rho_6t_min", default=0.0)
+@click.option("--rho_6t_max", default=0.035)
 @click.option("--dm_chirp_abs", default=2e-3)
 @click.option("--dm_chirp_v_min", default=1e-4)
 @click.option("--dm_chirp_v_max", default=1e-3)
@@ -120,7 +120,7 @@ def run(
     dd_s, f_l = setup_system(gamma_s, rho_6)
 
     # Run nested sampling
-    # results_v = run_ns_v(dd_s, f_l, base_path, dm_chirp_v_min, dm_chirp_v_max)
+    results_v = run_ns_v(dd_s, f_l, base_path, dm_chirp_v_min, dm_chirp_v_max)
     results = run_ns(
         dd_s, f_l, base_path, rho_6t_min, rho_6t_max, dm_chirp_abs, gamma_s, rho_6t
     )
