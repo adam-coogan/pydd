@@ -101,8 +101,8 @@ def run_ns(dd_s, f_l, base_path, rho_6T_min, rho_6T_max, dM_chirp_abs, gamma_s, 
 @click.option("--rho_6t_min", default=0.0)
 @click.option("--rho_6t_max", default=0.035)
 @click.option("--dm_chirp_abs", default=2e-3)
-@click.option("--dm_chirp_v_min", default=1e-4)
-@click.option("--dm_chirp_v_max", default=1e-3)
+@click.option("--dm_chirp_v_min", default=0.)
+@click.option("--dm_chirp_v_max", default=2e-3)
 @click.option("--suffix", default="_test")
 def run(
     rho_6t,
