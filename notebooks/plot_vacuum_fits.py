@@ -21,12 +21,29 @@ from utils import (
 )
 
 
+def load_bayes_factors():
+    rho_6T_bfs = jnp.array([0.001, 0.002, 0.004, 0.01])
+    gamma_s_bfs = jnp.array([2.25, 2.3, 2.4, 2.5])
+    bfs = np.zeros([len(rho_6T_bfs), len(gamma_s_bfs)])
+
+    for i, rho_6T in enumerate(rho_6T_bfs):
+        for j, gamma_s in enumerate(gamma_s_bfs):
+            path = os.path.join(
+                "ns", f"rho_6T={rho_6T:g}_gamma_s={gamma_s:g}_test-bayes.npz"
+            )
+            bfs[i, j] = jnp.load(path)["bayes_fact"]
+
+    bfs = jnp.array(bfs)
+
+    return rho_6T_bfs, gamma_s_bfs, bfs
+
+
 @click.command()
 @click.option("--path", default="vacuum_fits.npz")
 @click.option("--rho_s/--no-rho_s", default=False)
 def run(path, rho_s):
     # Load
-    f = jnp.load(path)
+    f = jnp.load(os.path.join("vacuum_fits", path))
     rho_6Ts = rho_6_to_rho6T(f["RHO_6S"])
 
     # Plot
@@ -104,6 +121,8 @@ def run(path, rho_s):
     )
     ax.text(2e-1, 2.48, r"$> 10\%$", ha="center", va="center", backgroundcolor="w")
 
+    rho_6T_bfs, gamma_s_bfs, bfs = load_bayes_factors()
+
     for ax in axes.flatten():
         ax.set_xscale("log")
         ax.set_xlabel(r"$\rho_6$ [$10^{16}$ $\mathrm{M}_\odot \, \mathrm{pc}^{-3}$]")
@@ -116,6 +135,19 @@ def run(path, rho_s):
         ax.scatter(
             [rho_6_to_rho6T(setup_pbh()[1])], [9 / 4], marker=".", color="r", s=200
         )
+
+        # Bayes factors
+        cs = ax.contour(
+            rho_6T_bfs,
+            gamma_s_bfs,
+            jnp.log10(bfs).T,
+            levels=[0, 1, 2],
+            colors="r",
+            linestyles=["-"],
+            linewidths=[1],
+        )
+        ax.clabel(cs, inline=True, fontsize=8, fmt=lambda f: f"{10**f:g}")
+
         # rho_s contours
         if rho_s:
             cs = ax.contour(
