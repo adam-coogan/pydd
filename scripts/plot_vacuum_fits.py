@@ -1,24 +1,12 @@
-from math import pi
 import os
 
 import click
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import minimize_scalar
-from tqdm.auto import tqdm
 
-from pydd.analysis import calculate_SNR, calculate_match_unnormd_fft
-from pydd.binary import MSUN, PC, Phi_to_c, VacuumBinary, get_M_chirp, get_rho_s
-from utils import (
-    get_loglikelihood_v,
-    rho_6T_to_rho6,
-    rho_6_to_rho6T,
-    setup_astro,
-    setup_pbh,
-    setup_system,
-)
+from pydd.binary import MSUN, PC
+from utils import RHO_6_ASTRO, RHO_6_PBH, rho_6_to_rho6T
 
 
 def load_bayes_factors():
@@ -40,7 +28,7 @@ def load_bayes_factors():
 
 @click.command()
 @click.option("--path", default="vacuum_fits.npz")
-@click.option("--rho_s/--no-rho_s", default=False)
+@click.option("--rho_s/--no-rho_s", default=False, help="plot rho_s contours")
 def run(path, rho_s):
     # Load
     f = jnp.load(os.path.join("vacuum_fits", path))
@@ -130,15 +118,13 @@ def run(path, rho_s):
         ax.set_xlim(rho_6_to_rho6T(f["rho_6s"][0]), 0.7)
         # Benchmarks
         ax.scatter(
-            [rho_6_to_rho6T(setup_astro()[1])],
+            [RHO_6_ASTRO],
             [7 / 3],
             marker="*",
             color="black",
             s=100,
         )
-        ax.scatter(
-            [rho_6_to_rho6T(setup_pbh()[1])], [9 / 4], marker=".", color="black", s=200
-        )
+        ax.scatter([RHO_6_PBH], [9 / 4], marker=".", color="black", s=200)
 
         # Bayes factors
         cs = ax.contour(

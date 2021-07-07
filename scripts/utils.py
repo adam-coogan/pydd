@@ -89,58 +89,26 @@ def get_ptform_v(u, M_chirp_MSUN_range):
     return jnp.array((high - low) * u + low)
 
 
-def setup_astro():
-    m_1 = jnp.array(1e3 * MSUN)
-    m_2 = jnp.array(1 * MSUN)
-    rho_s = jnp.array(226 * MSUN / PC ** 3)
-    gamma_s = jnp.array(7 / 3)
-
-    rho_6 = root_scalar(
-        lambda rho: get_rho_s(rho, m_1, gamma_s) - rho_s,
-        bracket=(1e-5, 1e-1),
-        rtol=1e-15,
-        xtol=1e-100,
-    ).root
-
-    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s)
-    dd_v = VacuumBinary(dd_s.M_chirp, dd_s.Phi_c, dd_s.tT_c, dd_s.dL_iota, dd_s.f_c)
-
-    f_l = root_scalar(
-        lambda f: t_to_c(f, dd_s) - t_obs_lisa,
-        bracket=(1e-3, 1e-1),
-        rtol=1e-15,
-        xtol=1e-100,
-    ).root
-
-    return dd_s, rho_6, f_l, dd_v
+# Benchmark parameters
+M_1_BM = 1e3 * MSUN
+M_2_BM = 1.4 * MSUN
+DL_BM = 85e6 * PC  # gives SNR = 15.0
+GAMMA_S_ASTRO = 7 / 3
+GAMMA_S_PBH = 9 / 4
+RHO_6_ASTRO = rho_6T_to_rho6(0.5448)
+RHO_6_PBH = rho_6T_to_rho6(0.5345)
 
 
-def setup_pbh():
-    m_1 = jnp.array(1e3 * MSUN)
-    m_2 = jnp.array(1 * MSUN)
-    gamma_s = jnp.array(9 / 4)
-    rho_6 = 5345040429615936.0 * MSUN / PC ** 3
+def setup_system(gamma_s, rho_6):
+    """
+    Sets up a dark dress with given spike parameters using benchmark masses and
+    distance, and computes frequency at `t_obs_lisa` before coalescence.
+    """
+    m_1 = jnp.array(M_1_BM)
+    m_2 = jnp.array(M_2_BM)
     rho_s = get_rho_s(rho_6, m_1, gamma_s)
 
-    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s)
-    dd_v = VacuumBinary(dd_s.M_chirp, dd_s.Phi_c, dd_s.tT_c, dd_s.dL_iota, dd_s.f_c)
-
-    f_l = root_scalar(
-        lambda f: t_to_c(f, dd_s) - t_obs_lisa,
-        bracket=(1e-3, 1e-1),
-        rtol=1e-15,
-        xtol=1e-100,
-    ).root
-
-    return dd_s, rho_6, f_l, dd_v
-
-
-def setup_system(gamma_s, rho_6, m_1=1e3 * MSUN, m_2=1 * MSUN, dL=100e6 * PC):
-    m_1 = jnp.array(m_1)
-    m_2 = jnp.array(m_2)
-    rho_s = get_rho_s(rho_6, m_1, gamma_s)
-
-    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s, dL=dL)
+    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s, dL=jnp.array(DL_BM))
 
     f_l = root_scalar(
         lambda f: t_to_c(f, dd_s) - t_obs_lisa,

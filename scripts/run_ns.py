@@ -3,10 +3,11 @@ import pickle
 import click
 import dynesty
 from dynesty import plotting as dyplot
+from dynesty.results import Results
 import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
-from pydd.binary import MSUN, PC, get_rho_s, Binary
+from pydd.binary import DynamicDress, MSUN, PC, get_rho_s
 from utils import (
     get_loglikelihood,
     get_loglikelihood_v,
@@ -22,10 +23,11 @@ from utils import (
 
 
 def run_ns_v(
-    dd_s: Binary, f_l, base_path: str, dM_chirp_v_min, dM_chirp_v_max
-) -> dynesty.results.Results:
+    dd_s: DynamicDress, f_l, base_path: str, dM_chirp_v_min, dM_chirp_v_max
+) -> Results:
     """
-    Runs nested sampling for a vacuum system given a signal system dd_s.
+    Runs nested sampling for a vacuum system given a signal system dd_s. Saves
+    results and posterior plots.
     """
     # Setup
     M_chirp_MSUN_range_v = (
@@ -41,7 +43,6 @@ def run_ns_v(
     )
     sampler_v.run_nested()
     results_v = sampler_v.results
-    print("Vacuum results:\n", results_v.summary())
 
     # Save
     with open(f"ns/{base_path}-v.pkl", "wb") as output:
@@ -58,7 +59,7 @@ def run_ns_v(
 
 
 def run_ns(
-    dd_s: Binary,
+    dd_s: DynamicDress,
     f_l,
     base_path: str,
     rho_6T_min,
@@ -66,9 +67,10 @@ def run_ns(
     dM_chirp_abs,
     gamma_s,
     rho_6T,
-) -> dynesty.results.Results:
+) -> Results:
     """
     Runs nested sampling for a dark dress system given a signal system dd_s.
+    Saves results and posterior plots.
     """
     # Setup
     gamma_s_range = [2.25, 2.5]
@@ -84,7 +86,6 @@ def run_ns(
     sampler = dynesty.NestedSampler(loglikelihood, ptform, 4, nlive=500)
     sampler.run_nested()
     results = sampler.results
-    print("Dark dress results:\n", results.summary())
 
     # Save
     with open(f"ns/{base_path}.pkl", "wb") as output:
@@ -113,28 +114,28 @@ def run_ns(
 
 
 @click.command()
-@click.option("--m1", default=1e3, help="m1 / MSUN")
-@click.option("--m2", default=1.4, help="m2 / MSUN")
-@click.option("--dL", default=85e6, help="dL / PC")
 @click.option("--rho_6t", default=0.01, help="rho_6 / (10^16 MSUN / PC^3)")
 @click.option("--gamma_s", default=7 / 3)
 @click.option("--rho_6t_min", default=0.0)
 @click.option("--rho_6t_max", default=0.035)
 @click.option("--dm_chirp_abs", default=2e-3)
+@click.option(
+    "--calc-bf/--no-calc-bf",
+    default=False,
+    help="calculate Bayes factor by running nested sampling for vacuum system",
+)
 @click.option("--dm_chirp_v_min", default=0.0)
 @click.option("--dm_chirp_v_max", default=2e-3)
 @click.option(
     "--suffix", default="_test", help="suffix for generated figures and bayes factor"
 )
 def run(
-    m1,
-    m2,
-    dL,
     rho_6t,
     gamma_s,
     rho_6t_min,
     rho_6t_max,
     dm_chirp_abs,
+    calc_bf,
     dm_chirp_v_min,
     dm_chirp_v_max,
     suffix,
@@ -144,37 +145,44 @@ def run(
     computes and saves the Bayes factor.
     """
     base_path = f"rho_6T={rho_6t:g}_gamma_s={gamma_s:g}{suffix}"
-    print("Base path:", base_path)
-
+    print("Base filename for plots, results and Bayes factor:", base_path)
     rho_6 = rho_6T_to_rho6(rho_6t)
-    dd_s, f_l = setup_system(gamma_s, rho_6, m1, m2, dL)
+    dd_s, f_l = setup_system(gamma_s, rho_6)
 
     # Run nested sampling
-    results_v = run_ns_v(dd_s, f_l, base_path, dm_chirp_v_min, dm_chirp_v_max)
     results = run_ns(
         dd_s, f_l, base_path, rho_6t_min, rho_6t_max, dm_chirp_abs, gamma_s, rho_6t
     )
+    print("Dark dress results:\n", results.summary())
 
-    # Correct for rho_6T prior, extending up to the most extreme rho_6T value we've considered
-    rho_6T_upper = rho_6_to_rho6T(
-        root_scalar(
-            lambda rho: get_rho_s(rho, 1e5 * MSUN, 2.5) - 1000 * MSUN / PC ** 3,
-            bracket=(1e-3, 1e2),
-            rtol=1e-15,
-            xtol=1e-100,
-        ).root
-    )
-    rho_6T_fact = (rho_6t_max - rho_6t_min) / rho_6T_upper
-    # Correct for different chirp mass priors
-    dM_fact = 2 * dm_chirp_abs / (dm_chirp_v_max - dm_chirp_v_min)
+    if calc_bf:
+        results_v = run_ns_v(dd_s, f_l, base_path, dm_chirp_v_min, dm_chirp_v_max)
+        print("Vacuum results:\n", results_v.summary())
 
-    # Compute uncorrected and corrected Bayes factors
-    bayes_fact_ns = jnp.exp(results.logz[-1]) / jnp.exp(results_v.logz[-1])
-    bayes_fact = dM_fact * rho_6T_fact * bayes_fact_ns
-    print(f"The Bayes factor is {bayes_fact}")
-    jnp.savez(
-        f"ns/{base_path}-bayes.npz", bayes_fact_ns=bayes_fact_ns, bayes_fact=bayes_fact
-    )
+        # Correction for rho_6T prior, extending up to the most extreme rho_6T value
+        # we've done simulations for
+        rho_6T_upper = rho_6_to_rho6T(
+            root_scalar(
+                lambda rho: get_rho_s(rho, 1e5 * MSUN, 2.5) - 1000 * MSUN / PC ** 3,
+                bracket=(1e-3, 1e2),
+                rtol=1e-15,
+                xtol=1e-100,
+            ).root
+        )
+        rho_6T_fact = (rho_6t_max - rho_6t_min) / rho_6T_upper
+
+        # Correction for different chirp mass priors
+        dM_fact = 2 * dm_chirp_abs / (dm_chirp_v_max - dm_chirp_v_min)
+
+        # Compute uncorrected and corrected Bayes factors
+        bayes_fact_ns = jnp.exp(results.logz[-1]) / jnp.exp(results_v.logz[-1])
+        bayes_fact = dM_fact * rho_6T_fact * bayes_fact_ns
+        jnp.savez(
+            f"ns/{base_path}-bayes.npz",
+            bayes_fact_ns=bayes_fact_ns,
+            bayes_fact=bayes_fact,
+        )
+        print(f"The Bayes factor is {bayes_fact}")
 
 
 if __name__ == "__main__":

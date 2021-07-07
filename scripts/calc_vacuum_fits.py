@@ -9,8 +9,18 @@ from scipy.optimize import minimize_scalar
 from tqdm.auto import tqdm
 
 from pydd.analysis import calculate_SNR, calculate_match_unnormd_fft
-from pydd.binary import MSUN, Phi_to_c, VacuumBinary, get_M_chirp, get_rho_s
+from pydd.binary import (
+    DynamicDress,
+    MSUN,
+    Phi_to_c,
+    VacuumBinary,
+    convert,
+    get_M_chirp,
+    get_rho_s,
+)
 from utils import (
+    M_1_BM,
+    M_2_BM,
     get_loglikelihood_v,
     rho_6T_to_rho6,
     rho_6_to_rho6T,
@@ -18,84 +28,46 @@ from utils import (
 )
 
 
-def loop_fun(rho_6, gamma_ss, m_1, M_chirp_MSUN, bracket):
+def fit_v(dd_s: DynamicDress, f_l) -> VacuumBinary:
     """
-    Loops over gamma_s values with other parameters fixed and computes the
-    naive dephasing, then finds the best-fit vacuum system and computes the
-    dephasing, SNR loss and chirp mass bias.
+    Find best-fit vacuum system.
     """
-    n_gamma = len(gamma_ss)
-    snrs = np.full([n_gamma], np.nan)
-    rho_ss = np.full([n_gamma], np.nan)
-    dN_naives = np.full([n_gamma], np.nan)
-    matches = np.full([n_gamma], np.nan)
-    dNs = np.full([n_gamma], np.nan)
-    M_chirp_MSUN_bests = np.full([n_gamma], np.nan)
-    M_chirp_MSUN_best_errs = np.full([n_gamma], np.nan)
+    fun = lambda x: -get_loglikelihood_v([x], dd_s, f_l)
+    bracket = (dd_s.M_chirp / MSUN, dd_s.M_chirp / MSUN + 1e-1)
+    res = minimize_scalar(fun, bracket, tol=1e-15)
 
-    for i, gamma_s in enumerate(gamma_ss):
-        dd_s, f_l = setup_system(gamma_s, rho_6)
+    assert res.success
 
-        snrs[i] = calculate_SNR(dd_s, f_l, dd_s.f_c, 3000)
+    return VacuumBinary(
+        res.x * MSUN,
+        dd_s.Phi_c,
+        dd_s.tT_c,
+        dd_s.dL_iota,
+        dd_s.f_c,
+    )
 
-        rho_ss[i] = get_rho_s(rho_6, m_1, gamma_s)
 
-        # Dephasing relative to system with no DM
-        dd_v = VacuumBinary(
-            jnp.array(M_chirp_MSUN * MSUN),
-            dd_s.Phi_c,
-            dd_s.tT_c,
-            dd_s.dL_iota,
-            dd_s.f_c,
+def get_M_chirp_err(dd_v: VacuumBinary, dd_s: DynamicDress, f_l) -> jnp.ndarray:
+    """
+    Returns an estimate of the error on the best-fit vacuum system's chirp
+    mass.
+    """
+    M_chirp_MSUN = dd_v.M_chirp / MSUN
+    M_chirp_MSUN_grid = jnp.linspace(M_chirp_MSUN - 2e-5, M_chirp_MSUN + 2e-5, 500)
+    loglikelihoods = jax.lax.map(
+        lambda x: get_loglikelihood_v([x], dd_s, f_l), M_chirp_MSUN_grid
+    )
+    norm = jnp.trapz(jnp.exp(loglikelihoods), M_chirp_MSUN_grid)
+    return jnp.sqrt(
+        jnp.trapz(
+            (M_chirp_MSUN_grid - M_chirp_MSUN) ** 2 * jnp.exp(loglikelihoods),
+            M_chirp_MSUN_grid,
         )
-        dN_naives[i] = (Phi_to_c(f_l, dd_v) - Phi_to_c(f_l, dd_s)) / (2 * pi)
-
-        if rho_6_to_rho6T(rho_6) < 5e-2:
-            # Find best-fit vacuum system
-            fun = lambda x: -get_loglikelihood_v([x], dd_s, f_l)
-            res = minimize_scalar(fun, bracket, tol=1e-15)
-            assert res.success
-            M_chirp_MSUN_bests[i] = res.x
-            dd_v_best = VacuumBinary(
-                M_chirp_MSUN_bests[i] * MSUN,
-                dd_s.Phi_c,
-                dd_s.tT_c,
-                dd_s.dL_iota,
-                dd_s.f_c,
-            )
-
-            # <V | D> match
-            matches[i] = calculate_match_unnormd_fft(
-                dd_v_best, dd_s, f_l, dd_s.f_c, 100_000
-            )
-
-            # True dephasing
-            dNs[i] = (Phi_to_c(f_l, dd_v_best) - Phi_to_c(f_l, dd_s)) / (2 * pi)
-
-            # Compute M_chirp error bars
-            M_chirp_MSUN_grid = jnp.linspace(
-                M_chirp_MSUN_bests[i] - 2e-5, M_chirp_MSUN_bests[i] + 2e-5, 500
-            )
-            loglikelihoods = jax.lax.map(
-                lambda x: get_loglikelihood_v([x], dd_s, f_l), M_chirp_MSUN_grid
-            )
-            norm = jnp.trapz(jnp.exp(loglikelihoods), M_chirp_MSUN_grid)
-            M_chirp_MSUN_best_errs[i] = jnp.sqrt(
-                jnp.trapz(
-                    (M_chirp_MSUN_grid - M_chirp_MSUN_bests[i]) ** 2
-                    * jnp.exp(loglikelihoods),
-                    M_chirp_MSUN_grid,
-                )
-                / norm
-            )
-
-    return snrs, rho_ss, dN_naives, matches, dNs, M_chirp_MSUN_best_errs
+        / norm
+    )
 
 
 @click.command()
-@click.option("--m1", default=1e3, help="m1 / MSUN")
-@click.option("--m2", default=1.4, help="m2 / MSUN")
-@click.option("--path", default="vacuum_fits.npz")
 @click.option("--n_rho", default=4)
 @click.option("--n_gamma", default=3)
 @click.option(
@@ -106,67 +78,72 @@ def loop_fun(rho_6, gamma_ss, m_1, M_chirp_MSUN, bracket):
 )
 @click.option("--gamma_s_min", default=2.25, help="min value of gamma_s")
 @click.option("--gamma_s_max", default=2.5, help="max value of gamma_s")
-def run(m1, m2, path, n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max):
+@click.option("--suffix", default="_test", help="suffix for output file")
+def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix):
     """
     For dark dresses with fixed BH masses and various rho_6 and gamma_s values,
     computes the naive dephasing, best-fit vacuum system and its dephasing,
     chirp mass bias and SNR loss.
     """
-    m_1 = m1 * MSUN
-    m_2 = m2 * MSUN
-    M_chirp_MSUN = get_M_chirp(m_1, m_2) / MSUN
+    path = os.path.join("vacuum_fits", f"vacuum_fits{suffix}.npz")
     rho_6s = jnp.geomspace(
         rho_6T_to_rho6(rho_6t_min), rho_6T_to_rho6(rho_6t_max), n_rho
     )
     gamma_ss = jnp.linspace(gamma_s_min, gamma_s_max, n_gamma)
-    bracket = (M_chirp_MSUN, M_chirp_MSUN + 1e-1)
 
-    M_chirp_MSUN_bests = np.full([n_rho, n_gamma], np.nan)
-    M_chirp_MSUN_best_errs = np.full([n_rho, n_gamma], np.nan)
-    matches = np.full([n_rho, n_gamma], np.nan)
-    snrs = np.full([n_rho, n_gamma], np.nan)
-    dNs = np.full([n_rho, n_gamma], np.nan)
-    dN_naives = np.full([n_rho, n_gamma], np.nan)
-    rho_ss = np.full([n_rho, n_gamma], np.nan)
+    results = {
+        k: np.full([n_rho, n_gamma], np.nan)
+        for k in [
+            "snrs",
+            "rho_ss",
+            "dN_naives",
+            "matches",
+            "dNs",
+            "M_chirp_MSUN_bests",
+            "M_chirp_MSUN_best_errs",
+        ]
+    }
 
-    results = map(
-        lambda rho_6: loop_fun(rho_6, gamma_ss, m_1, M_chirp_MSUN, bracket),
-        tqdm(rho_6s),
-    )
+    for i, rho_6 in enumerate(tqdm(rho_6s)):
+        for j, gamma_s in enumerate(gamma_ss):
+            dd_s, f_l = setup_system(gamma_s, rho_6)
 
-    for i, result_i in enumerate(results):
-        (
-            snrs[i],
-            rho_ss[i],
-            dN_naives[i],
-            matches[i],
-            dNs[i],
-            M_chirp_MSUN_best_errs[i],
-        ) = result_i
+            results["snrs"][i, j] = calculate_SNR(dd_s, f_l, dd_s.f_c, 3000)
+            results["rho_ss"][i, j] = get_rho_s(rho_6, M_1_BM, gamma_s)
 
-    M_chirp_MSUN_bests = jnp.array(M_chirp_MSUN_bests)
-    M_chirp_MSUN_best_errs = jnp.array(M_chirp_MSUN_best_errs)
-    matches = jnp.array(matches)
-    snrs = jnp.array(snrs)
-    dNs = jnp.array(dNs)
-    dN_naives = jnp.array(dN_naives)
-    rho_ss = jnp.array(rho_ss)
+            # Dephasing relative to system with no DM
+            dd_v = convert(dd_s, VacuumBinary)
+            results["dN_naives"][i, j] = (Phi_to_c(f_l, dd_v) - Phi_to_c(f_l, dd_s)) / (
+                2 * pi
+            )
+
+            # Don't waste effort on systems that are very hard to fit
+            if rho_6_to_rho6T(rho_6) < 5e-2:
+                dd_v_best = fit_v(dd_s, f_l)
+                results["M_chirp_MSUN_bests"][i, j] = dd_v_best.M_chirp / MSUN
+                results["matches"][i, j] = calculate_match_unnormd_fft(
+                    dd_v_best, dd_s, f_l, dd_s.f_c, 100_000
+                )
+                results["dNs"][i, j] = (
+                    Phi_to_c(f_l, dd_v_best) - Phi_to_c(f_l, dd_s)
+                ) / (2 * pi)
+                results["M_chirp_MSUN_best_errs"][i, j] = get_M_chirp_err(
+                    dd_v_best, dd_s, f_l
+                )
+
+    results = {k: jnp.array(v) for k, v in results.items()}
+    print(results)
 
     jnp.savez(
-        os.path.join("vacuum_fits", path),
-        M_1=m_1,
-        M_2=m_2,
-        M_chirp_MSUN=M_chirp_MSUN,
+        path,
+        m_1=M_1_BM,
+        m_2=M_2_BM,
+        M_chirp_MSUN=get_M_chirp(M_1_BM, M_2_BM) / MSUN,
         rho_6s=rho_6s,
         gamma_ss=gamma_ss,
-        M_chirp_MSUN_bests=M_chirp_MSUN_bests,
-        M_chirp_MSUN_best_errs=M_chirp_MSUN_best_errs,
-        matches=matches,
-        snrs=snrs,
-        dNs=dNs,
-        dN_naives=dN_naives,
-        rho_ss=rho_ss,
+        **results,
     )
+    print(f"Results saved to {path}")
 
 
 if __name__ == "__main__":
