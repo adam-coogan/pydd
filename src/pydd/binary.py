@@ -88,12 +88,16 @@ def get_f_isco(m_1):
 def get_r_s(m_1, rho_s, gamma_s):
     return ((3 - gamma_s) * 0.2 ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
 
+
 @jit
 def get_rho_s(rho_6, m_1, gamma_s):
-    r_6 = 1e-6*PC
-    m_tilde = ((3-gamma_s)*(0.2)**(3-gamma_s))*m_1/(2*jnp.pi)
-    return (rho_6*r_6**gamma_s/(m_tilde**(gamma_s/3)))**(1/(1-gamma_s/3))
-    
+    r_6 = 1e-6 * PC
+    m_tilde = ((3 - gamma_s) * (0.2) ** (3 - gamma_s)) * m_1 / (2 * jnp.pi)
+    return (rho_6 * r_6 ** gamma_s / (m_tilde ** (gamma_s / 3))) ** (
+        1 / (1 - gamma_s / 3)
+    )
+
+
 @jit
 def get_xi(gamma_s):
     # Could use that I_x(a, b) = 1 - I_{1-x}(b, a)
@@ -182,7 +186,7 @@ def _Phi_to_c_indef(f, params: Binary):
     elif isinstance(params, HypGeomDress):
         return _Phi_to_c_indef_h(f, params)
     else:
-        raise ValueError("'params' type is not supported")
+        raise ValueError("unrecognized type")
 
 
 @jit
@@ -502,6 +506,22 @@ def make_dynamic_dress(
     dL_iota = get_dL_iota(dL, iota)
     f_c = get_f_isco(m_1)
     return DynamicDress(gamma_s, c_f, M_chirp, m_2 / m_1, Phi_c, tT_c, dL_iota, f_c)
+
+
+def convert(params: Binary, NewType) -> Binary:
+    """
+    Change binary's type by dropping attributes.
+    """
+    if isinstance(params, StaticDress) and NewType is DynamicDress:
+        raise ValueError("cannot convert a StaticDress to a DynamicDress")
+    elif isinstance(params, VacuumBinary) and NewType in [StaticDress, DynamicDress]:
+        raise ValueError(
+            "cannot convert a StaticDress to a StaticDress or DynamicDress"
+        )
+    elif isinstance(params, HypGeomDress) or NewType is HypGeomDress:
+        raise ValueError("conversion to/from HypGeomDress not supported yet")
+
+    return NewType(**{f: getattr(params, f) for f in NewType._fields})
 
 
 # General hypergeometric
