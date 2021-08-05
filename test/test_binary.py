@@ -3,11 +3,12 @@ import jax.numpy as jnp
 from pydd.analysis import calculate_SNR, loglikelihood
 from pydd.binary import DynamicDress, get_f_isco, get_m_1
 
+"""
+Make sure the SNR and likelihood calculations run.
+"""
+
 
 def test_SNR_loglikelihood(verbose=False):
-    """
-    Make sure the SNR and likelihood calculations run.
-    """
     f_c_s = get_f_isco(get_m_1(jnp.array(3.151009407916561e31), jnp.array(0.001)))
     f_c_h = get_f_isco(
         get_m_1(jnp.array(3.151580260164573e31), jnp.array(0.0005415094825728555))
@@ -32,7 +33,7 @@ def test_SNR_loglikelihood(verbose=False):
         jnp.array(0.0005415094825728555),
         jnp.array(dd_s.Phi_c),
         jnp.array(-227.74995698),
-        jnp.array(dd_s.dL_iota),
+        jnp.array(dd_s.dL),
         f_c_h,
     )
 

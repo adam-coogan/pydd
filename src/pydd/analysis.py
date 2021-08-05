@@ -3,8 +3,13 @@ from functools import partial
 from jax import jit
 import jax.numpy as jnp
 
-from .binary import Binary, Psi, amp_plus
+from .binary import Binary, Psi, amp
 from .noise import S_n_LISA
+
+
+"""
+SNR, likelihood and match functions.
+"""
 
 
 @partial(jit, static_argnums=(0, 3, 4))
@@ -49,7 +54,7 @@ def simps(f, a, b, N, log):
 @partial(jit, static_argnums=(3,))
 def calculate_SNR(params: Binary, f_l, f_h, n=3000):
     f_h = jnp.minimum(f_h, params.f_c)
-    modh_integrand = lambda f: 4 * amp_plus(f, params) ** 2 / S_n_LISA(f)
+    modh_integrand = lambda f: 4 * amp(f, params) ** 2 / S_n_LISA(f)
     return jnp.sqrt(simps(modh_integrand, f_l, f_h, n, True))
 
 
@@ -66,7 +71,7 @@ def calculate_match_unnormd(
     """
     f_h = jnp.minimum(f_h, jnp.minimum(params_h.f_c, params_d.f_c))
 
-    amp_prod = lambda f: amp_plus(f, params_h) * amp_plus(f, params_d)
+    amp_prod = lambda f: amp(f, params_h) * amp(f, params_d)
     dPsi = lambda f: Psi(f, params_h) - Psi(f, params_d)
     integrand_re = lambda f: amp_prod(f) * jnp.cos(dPsi(f)) / S_n_LISA(f)
     integrand_im = lambda f: amp_prod(f) * jnp.sin(dPsi(f)) / S_n_LISA(f)
@@ -99,8 +104,8 @@ def calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n):
     fs = jnp.linspace(f_l, f_h, n)
     df = fs[1] - fs[0]
 
-    wf_hs = amp_plus(fs, params_h) * jnp.exp(1j * Psi(fs, params_h))
-    wf_ds = amp_plus(fs, params_d) * jnp.exp(1j * Psi(fs, params_d))
+    wf_hs = amp(fs, params_h) * jnp.exp(1j * Psi(fs, params_h))
+    wf_ds = amp(fs, params_d) * jnp.exp(1j * Psi(fs, params_d))
     overlap_tc = jnp.fft.fft(4 * wf_hs * wf_ds.conj() * df / S_n_LISA(fs))
     return jnp.abs(overlap_tc).max()
 

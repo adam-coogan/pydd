@@ -8,18 +8,21 @@ import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
 from pydd.binary import DynamicDress, MSUN, PC, get_rho_s
+from plot_ns import labels, quantiles_2d, smooth
 from utils import (
     get_loglikelihood,
     get_loglikelihood_v,
     get_ptform,
     get_ptform_v,
-    labels,
-    quantiles,
-    quantiles_2d,
     rho_6T_to_rho6,
     rho_6_to_rho6T,
     setup_system,
 )
+
+
+"""
+Runs nested sampler for a system
+"""
 
 
 def run_ns_v(
@@ -49,9 +52,7 @@ def run_ns_v(
         pickle.dump(results_v, output, pickle.HIGHEST_PROTOCOL)
 
     # Plot
-    cfig = dyplot.cornerplot(
-        results_v, labels=[r"$\mathcal{M}$ [M$_\odot$]"], quantiles=[1 - 0.95, 0.95]
-    )[0]
+    cfig = dyplot.cornerplot(results_v, labels=[r"$\mathcal{M}$ [M$_\odot$]"])[0]
     cfig.savefig(f"figures/{base_path}-v.pdf")
     cfig.savefig(f"figures/{base_path}-v.png")
 
@@ -95,9 +96,8 @@ def run_ns(
     cfig = dyplot.cornerplot(
         results,
         labels=labels,
-        quantiles=quantiles,
         quantiles_2d=quantiles_2d,
-        smooth=0.015,
+        smooth=smooth,
         truths=(
             gamma_s,
             rho_6T,
@@ -118,14 +118,22 @@ def run_ns(
 @click.option("--gamma_s", default=7 / 3)
 @click.option("--rho_6t_min", default=0.0)
 @click.option("--rho_6t_max", default=0.035)
-@click.option("--dm_chirp_abs", default=2e-3)
+@click.option(
+    "--dm_chirp_abs",
+    default=2e-3,
+    help="range above and below true chirp mass to use as prior",
+)
 @click.option(
     "--calc-bf/--no-calc-bf",
     default=False,
     help="calculate Bayes factor by running nested sampling for vacuum system",
 )
-@click.option("--dm_chirp_v_min", default=0.0)
-@click.option("--dm_chirp_v_max", default=2e-3)
+@click.option(
+    "--dm_chirp_v_min", default=0.0, help="lower bound for vacuum chirp mass prior"
+)
+@click.option(
+    "--dm_chirp_v_max", default=2e-3, help="upper bound for vacuum chirp mass prior"
+)
 @click.option(
     "--suffix", default="_test", help="suffix for generated figures and bayes factor"
 )

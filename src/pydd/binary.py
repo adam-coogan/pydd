@@ -9,6 +9,18 @@ from jaxinterp2d import interp2d
 from scipy.special import hyp2f1
 
 
+"""
+Functions for computing waveforms and various parameters for different types of
+binaries.
+
+While we use different notation in our paper, the `_to_c` notation means that
+the function returns zero when the input frequency equals the binary's
+coalescence frequency. This makes it much easier to compute dephasings and the
+like since phases don't need to be aligned manually.
+
+Uses SI units.
+"""
+
 G = 6.67408e-11  # m^3 s^-2 kg^-1
 C = 299792458.0  # m/s
 MSUN = 1.98855e30  # kg
@@ -17,42 +29,55 @@ YR = 365.25 * 24 * 3600  # s
 
 
 class VacuumBinary(NamedTuple):
+    """
+    GR-in-vacuum binary.
+    """
     M_chirp: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
-    dL_iota: jnp.ndarray
+    dL: jnp.ndarray
     f_c: jnp.ndarray
 
 
 class StaticDress(NamedTuple):
+    """
+    A dark dress with a non-evolving DM halo.
+    """
     gamma_s: jnp.ndarray
     c_f: jnp.ndarray
     M_chirp: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
-    dL_iota: jnp.ndarray
+    dL: jnp.ndarray
     f_c: jnp.ndarray
 
 
 class DynamicDress(NamedTuple):
+    """
+    A dark dress with an evolving DM halo.
+    """
     gamma_s: jnp.ndarray
     c_f: jnp.ndarray
     M_chirp: jnp.ndarray
     q: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
-    dL_iota: jnp.ndarray
+    dL: jnp.ndarray
     f_c: jnp.ndarray
 
 
 class HypGeomDress(NamedTuple):
+    """
+    Abstract approximation of a dark dress with hypergeometric phase
+    parametrization.
+    """
     lam: jnp.ndarray
     eta: jnp.ndarray
     M_chirp: jnp.ndarray
     f_b: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
-    dL_iota: jnp.ndarray
+    dL: jnp.ndarray
     f_c: jnp.ndarray
 
 
@@ -105,11 +130,6 @@ def get_xi(gamma_s):
 
 
 @jit
-def get_dL_iota(dL, iota):
-    return jnp.log((1 + jnp.cos(iota) ** 2) / (2 * dL))
-
-
-@jit
 def get_c_f(m_1, m_2, rho_s, gamma_s):
     Lambda = jnp.sqrt(m_1 / m_2)
     M = m_1 + m_2
@@ -132,7 +152,7 @@ def get_f_eq(gamma_s, c_f):
 
 
 @jit
-def get_psi_v(M_chirp):
+def get_a_v(M_chirp):
     return 1 / 16 * (C ** 3 / (pi * G * M_chirp)) ** (5 / 3)
 
 
@@ -161,8 +181,11 @@ def h_0(f, params: Binary):
 
 
 @jit
-def amp_plus(f, params: Binary):
-    return h_0(f, params) * jnp.exp(params.dL_iota)
+def amp(f, params: Binary):
+    """
+    Amplitude averaged over inclination angle.
+    """
+    return jnp.sqrt(4 / 5) * h_0(f, params) / params.dL
 
 
 @jit
@@ -220,17 +243,17 @@ def d2Phi_dt2(f, params: Binary):
 # Vacuum binary
 @jit
 def _Phi_to_c_indef_v(f, params: VacuumBinary):
-    return get_psi_v(params.M_chirp) / f ** (5 / 3)
+    return get_a_v(params.M_chirp) / f ** (5 / 3)
 
 
 @jit
 def _t_to_c_indef_v(f, params: VacuumBinary):
-    return 5 * get_psi_v(params.M_chirp) / (16 * pi * f ** (8 / 3))
+    return 5 * get_a_v(params.M_chirp) / (16 * pi * f ** (8 / 3))
 
 
 @jit
 def d2Phi_dt2_v(f, params: VacuumBinary):
-    return 12 * pi ** 2 * f ** (11 / 3) / (5 * get_psi_v(params.M_chirp))
+    return 12 * pi ** 2 * f ** (11 / 3) / (5 * get_a_v(params.M_chirp))
 
 
 @jit
@@ -240,13 +263,11 @@ def make_vacuum_binary(
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
-    iota=jnp.array(0.0),
 ) -> VacuumBinary:
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    dL_iota = get_dL_iota(dL, iota)
     f_c = get_f_isco(m_1)
-    return VacuumBinary(M_chirp, Phi_c, tT_c, dL_iota, f_c)
+    return VacuumBinary(M_chirp, Phi_c, tT_c, dL, f_c)
 
 
 # Interpolator for special version of hypergeometric function
@@ -310,7 +331,7 @@ def _Phi_to_c_indef_s(f, params: StaticDress):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
     return (
-        get_psi_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
+        get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
     )
 
 
@@ -319,7 +340,7 @@ def _t_to_c_indef_s(f, params: StaticDress):
     th = get_th_s(params.gamma_s)
     return (
         5
-        * get_psi_v(params.M_chirp)
+        * get_a_v(params.M_chirp)
         / (16 * pi * f ** (8 / 3))
         * hypgeom(th, -params.c_f * f ** ((2 * params.gamma_s - 11) / 3))
     )
@@ -331,7 +352,7 @@ def d2Phi_dt2_s(f, params: StaticDress):
         12
         * pi ** 2
         * (f ** (11 / 3) + params.c_f * f ** (2 * params.gamma_s / 3))
-        / (5 * get_psi_v(params.M_chirp))
+        / (5 * get_a_v(params.M_chirp))
     )
 
 
@@ -344,19 +365,21 @@ def make_static_dress(
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
-    iota=jnp.array(0.0),
 ) -> StaticDress:
     c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    dL_iota = get_dL_iota(dL, iota)
     f_c = get_f_isco(m_1)
-    return StaticDress(gamma_s, c_f, M_chirp, Phi_c, tT_c, dL_iota, f_c)
+    return StaticDress(gamma_s, c_f, M_chirp, Phi_c, tT_c, dL, f_c)
 
 
 # Dynamic
 @jit
 def get_f_b(m_1, m_2, gamma_s):
+    """
+    Gets the break frequency for a dynamic dress. This scaling relation was
+    derived from fitting `HaloFeedback` runs.
+    """
     beta = 0.8162599280541165
     alpha_1 = 1.441237217113085
     alpha_2 = 0.4511442198433961
@@ -373,6 +396,10 @@ def get_f_b(m_1, m_2, gamma_s):
 
 @jit
 def get_f_b_d(params: DynamicDress):
+    """
+    Gets the break frequency for a dynamic dress using our scaling relation
+    derived from fitting `HaloFeedback` runs.
+    """
     m_1 = get_m_1(params.M_chirp, params.q)
     m_2 = get_m_2(params.M_chirp, params.q)
     return get_f_b(m_1, m_2, params.gamma_s)
@@ -408,7 +435,7 @@ def _Phi_to_c_indef_d(f, params: DynamicDress):
     x = f / f_t
     th = get_th_d()
     return (
-        get_psi_v(params.M_chirp)
+        get_a_v(params.M_chirp)
         / f ** (5 / 3)
         * (
             1
@@ -427,7 +454,7 @@ def _t_to_c_indef_d(f, params: DynamicDress):
     th = get_th_d()
     eta = get_eta(params)
     coeff = (
-        get_psi_v(params.M_chirp)
+        get_a_v(params.M_chirp)
         * x ** (-lam)
         / (16 * pi * (1 + lam) * (8 + 3 * lam) * f ** (8 / 3))
     )
@@ -473,7 +500,7 @@ def d2Phi_dt2_d(f, params: DynamicDress):
         * x ** lam
         * (1 + x ** (5 / (3 * th)))
         / (
-            get_psi_v(params.M_chirp)
+            get_a_v(params.M_chirp)
             * (
                 5 * x ** lam
                 - 5 * eta
@@ -498,14 +525,12 @@ def make_dynamic_dress(
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
-    iota=jnp.array(0.0),
 ) -> DynamicDress:
     c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    dL_iota = get_dL_iota(dL, iota)
     f_c = get_f_isco(m_1)
-    return DynamicDress(gamma_s, c_f, M_chirp, m_2 / m_1, Phi_c, tT_c, dL_iota, f_c)
+    return DynamicDress(gamma_s, c_f, M_chirp, m_2 / m_1, Phi_c, tT_c, dL, f_c)
 
 
 def convert(params: Binary, NewType) -> Binary:
@@ -530,7 +555,7 @@ def _Phi_to_c_indef_h(f, params: HypGeomDress):
     x = f / params.f_b
     th = get_th_d()
     return (
-        get_psi_v(params.M_chirp)
+        get_a_v(params.M_chirp)
         / f ** (5 / 3)
         * (
             1
@@ -546,7 +571,7 @@ def _t_to_c_indef_h(f, params: HypGeomDress):
     x = f / params.f_b
     th = get_th_d()
     coeff = (
-        get_psi_v(params.M_chirp)
+        get_a_v(params.M_chirp)
         * x ** (-params.lam)
         / (16 * pi * (1 + params.lam) * (8 + 3 * params.lam) * f ** (8 / 3))
     )
@@ -595,7 +620,7 @@ def d2Phi_dt2_h(f, params: HypGeomDress):
         * x ** params.lam
         * (1 + x ** (5 / (3 * th)))
         / (
-            get_psi_v(params.M_chirp)
+            get_a_v(params.M_chirp)
             * (
                 5 * x ** params.lam
                 - 5 * params.eta
@@ -621,7 +646,6 @@ def make_hypgeom_dress(
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
-    iota=jnp.array(0.0),
 ) -> HypGeomDress:
     GAMMA_E = jnp.array(5 / 2)
     lam = (11 - 2 * (gamma_s + GAMMA_E)) / 3
@@ -636,7 +660,6 @@ def make_hypgeom_dress(
     M_chirp = get_M_chirp(m_1, m_2)
 
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    dL_iota = get_dL_iota(dL, iota)
     f_c = get_f_isco(m_1)
 
-    return HypGeomDress(lam, eta, M_chirp, f_b, Phi_c, tT_c, dL_iota, f_c)
+    return HypGeomDress(lam, eta, M_chirp, f_b, Phi_c, tT_c, dL, f_c)

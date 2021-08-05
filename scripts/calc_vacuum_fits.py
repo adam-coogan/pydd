@@ -27,6 +27,15 @@ from utils import (
     setup_system,
 )
 
+"""
+For dark dresses with fixed BH masses and various rho_6 and gamma_s values,
+computes the naive dephasing, best-fit vacuum system and its dephasing, chirp
+mass bias and SNR loss.
+
+This script gets the job done, but is poorly optimized and will use a huge
+amount of memory.
+"""
+
 
 def fit_v(dd_s: DynamicDress, f_l) -> VacuumBinary:
     """
@@ -42,7 +51,7 @@ def fit_v(dd_s: DynamicDress, f_l) -> VacuumBinary:
         res.x * MSUN,
         dd_s.Phi_c,
         dd_s.tT_c,
-        dd_s.dL_iota,
+        dd_s.dL,
         dd_s.f_c,
     )
 
@@ -68,8 +77,8 @@ def get_M_chirp_err(dd_v: VacuumBinary, dd_s: DynamicDress, f_l) -> jnp.ndarray:
 
 
 @click.command()
-@click.option("--n_rho", default=4)
-@click.option("--n_gamma", default=3)
+@click.option("--n_rho", default=30)
+@click.option("--n_gamma", default=25)
 @click.option(
     "--rho_6t_min", default=1e-4, help="min value of rho_6 / (10^16 MSUN / PC^3)"
 )
@@ -78,13 +87,8 @@ def get_M_chirp_err(dd_v: VacuumBinary, dd_s: DynamicDress, f_l) -> jnp.ndarray:
 )
 @click.option("--gamma_s_min", default=2.25, help="min value of gamma_s")
 @click.option("--gamma_s_max", default=2.5, help="max value of gamma_s")
-@click.option("--suffix", default="_test", help="suffix for output file")
+@click.option("--suffix", default="", help="suffix for output file")
 def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix):
-    """
-    For dark dresses with fixed BH masses and various rho_6 and gamma_s values,
-    computes the naive dephasing, best-fit vacuum system and its dephasing,
-    chirp mass bias and SNR loss.
-    """
     path = os.path.join("vacuum_fits", f"vacuum_fits{suffix}.npz")
     rho_6s = jnp.geomspace(
         rho_6T_to_rho6(rho_6t_min), rho_6T_to_rho6(rho_6t_max), n_rho

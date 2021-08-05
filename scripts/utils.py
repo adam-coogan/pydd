@@ -18,15 +18,11 @@ from pydd.binary import (
     t_to_c,
 )
 
+"""
+Useful definitions shared among scripts.
+"""
+
 t_obs_lisa = 5 * YR
-labels = (
-    r"$\gamma_s$",
-    r"$\rho_6$ [$10^{16}$ $\mathrm{M}_\odot \, \mathrm{pc}^{-3}$]",
-    r"$\mathcal{M}$ [M$_\odot$]",
-    r"$\log_{10} q$",
-)
-quantiles = [1 - 0.95, 0.95]
-quantiles_2d = [1 - np.exp(-(x ** 2) / 2) for x in [1, 2, 3]]
 
 
 def rho_6_to_rho6T(rho_6):
@@ -53,9 +49,7 @@ def get_loglikelihood(x, dd_s, f_l):
     c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     f_c = get_f_isco(m_1)
 
-    dd_h = DynamicDress(
-        gamma_s, c_f, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL_iota, f_c
-    )
+    dd_h = DynamicDress(gamma_s, c_f, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c)
 
     f_h = jnp.maximum(dd_s.f_c, dd_h.f_c)
     return loglikelihood_fft(dd_h, dd_s, f_l, f_h, 100000, 3000)
@@ -80,7 +74,7 @@ def get_loglikelihood_v(x, dd_s, f_l):
     dd_s: signal system
     """
     # Unpack parameters into dark dress ones
-    dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL_iota, dd_s.f_c)
+    dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
     return loglikelihood_fft(dd_h, dd_s, f_l, dd_s.f_c, 100000, 3000)
 
 

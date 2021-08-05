@@ -4,12 +4,13 @@ from scipy.optimize import minimize_scalar
 from pydd.analysis import loglikelihood, loglikelihood_fft
 from pydd.binary import DynamicDress, MSUN, PC, YR, make_dynamic_dress, t_to_c
 
+"""
+Check that maximizing over tT_c with an FFT gives the same results as doing it
+by hand.
+"""
+
 
 def test():
-    """
-    Check that maximizing over tT_c with an FFT gives the same results as doing
-    it by hand.
-    """
     # Test system
     m_1 = jnp.array(1e3 * MSUN)
     m_2 = jnp.array(1 * MSUN)
@@ -35,7 +36,7 @@ def test():
             dd_s.q,
             dd_s.Phi_c,
             jnp.array(tT_c),
-            dd_s.dL_iota,
+            dd_s.dL,
             dd_s.f_c,
         )
         logLs.append(loglikelihood(dd_alt, dd_s, f_l, f_c, 20000, 3000))

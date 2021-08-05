@@ -1,4 +1,15 @@
+"""
+Noise PSDs.
+"""
+
 def S_n_LISA(f):
+    """
+    LISA noise PSD, averaged over sky position and polarization angle.
+
+    Reference:
+        Travis Robson et al 2019 Class. Quantum Grav. 36 105011
+        https://arxiv.org/abs/1803.01944
+    """
     return (
         1
         / f ** 14

@@ -4,12 +4,13 @@ import jax.numpy as jnp
 
 from pydd.binary import hypgeom_jax, hypgeom_scipy
 
+"""
+Make sure the interpolated hypergeometric function agrees to 0.001-0.01% with
+scipy.
+"""
+
 
 def test_hypgeom_interps():
-    """
-    Make sure the interpolated hypergeometric function agrees to 0.001-0.01%
-    with scipy.
-    """
     n_samples = 1000
     key = random.PRNGKey(1234)
 
