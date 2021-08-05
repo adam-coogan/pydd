@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!README.md
+!rho_6T=0.5345_gamma_s=2.25.pkl
+!rho_6T=0.5448_gamma_s=2.33333.pkl
