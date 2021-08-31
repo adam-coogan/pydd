@@ -51,20 +51,16 @@ def simps(f, a, b, N, log):
         return simps(x_times_f, jnp.log(a), jnp.log(b), N, False)
 
 
-@partial(jit, static_argnums=(3,))
-def calculate_SNR(params: Binary, f_l, f_h, n=3000):
+@partial(jit, static_argnums=(3, 4))
+def calculate_SNR(params: Binary, f_l, f_h, n=3000, S_n=S_n_LISA):
     f_h = jnp.minimum(f_h, params.f_c)
-    modh_integrand = lambda f: 4 * amp(f, params) ** 2 / S_n_LISA(f)
+    modh_integrand = lambda f: 4 * amp(f, params) ** 2 / S_n(f)
     return jnp.sqrt(simps(modh_integrand, f_l, f_h, n, True))
 
 
-@partial(jit, static_argnums=(4,))
+@partial(jit, static_argnums=(4, 5))
 def calculate_match_unnormd(
-    params_h: Binary,
-    params_d: Binary,
-    f_l,
-    f_h,
-    n,
+    params_h: Binary, params_d: Binary, f_l, f_h, n, S_n=S_n_LISA
 ):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value.
@@ -73,29 +69,31 @@ def calculate_match_unnormd(
 
     amp_prod = lambda f: amp(f, params_h) * amp(f, params_d)
     dPsi = lambda f: Psi(f, params_h) - Psi(f, params_d)
-    integrand_re = lambda f: amp_prod(f) * jnp.cos(dPsi(f)) / S_n_LISA(f)
-    integrand_im = lambda f: amp_prod(f) * jnp.sin(dPsi(f)) / S_n_LISA(f)
+    integrand_re = lambda f: amp_prod(f) * jnp.cos(dPsi(f)) / S_n(f)
+    integrand_im = lambda f: amp_prod(f) * jnp.sin(dPsi(f)) / S_n(f)
     re = 4 * simps(integrand_re, f_l, f_h, n, True)
     im = 4 * simps(integrand_im, f_l, f_h, n, True)
     return jnp.sqrt(re ** 2 + im ** 2)
 
 
-@partial(jit, static_argnums=(4, 5))
-def loglikelihood(params_h: Binary, params_d: Binary, f_l, f_h, n=3000, n_same=3000):
+@partial(jit, static_argnums=(4, 5, 6))
+def loglikelihood(
+    params_h: Binary, params_d: Binary, f_l, f_h, n=3000, n_same=3000, S_n=S_n_LISA
+):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
     maximized over the distance to the binary and Phi_c.
     """
     # Waveform magnitude
-    ip_hh = calculate_SNR(params_h, f_l, f_h, n_same) ** 2
+    ip_hh = calculate_SNR(params_h, f_l, f_h, n_same, S_n) ** 2
     # Inner product of waveforms, maximized over Phi_c by taking absolute value
-    ip_hd = calculate_match_unnormd(params_h, params_d, f_l, f_h, n)
+    ip_hd = calculate_match_unnormd(params_h, params_d, f_l, f_h, n, S_n)
     # Maximize over distance
     return 1 / 2 * ip_hd ** 2 / ip_hh
 
 
-@partial(jit, static_argnums=(4,))
-def calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n):
+@partial(jit, static_argnums=(4, 5))
+def calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n, S_n=S_n_LISA):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value
     and t_c using the fast Fourier transform.
@@ -106,20 +104,22 @@ def calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n):
 
     wf_hs = amp(fs, params_h) * jnp.exp(1j * Psi(fs, params_h))
     wf_ds = amp(fs, params_d) * jnp.exp(1j * Psi(fs, params_d))
-    overlap_tc = jnp.fft.fft(4 * wf_hs * wf_ds.conj() * df / S_n_LISA(fs))
+    overlap_tc = jnp.fft.fft(4 * wf_hs * wf_ds.conj() * df / S_n(fs))
     return jnp.abs(overlap_tc).max()
 
 
-@partial(jit, static_argnums=(4, 5))
-def loglikelihood_fft(params_h: Binary, params_d: Binary, f_l, f_h, n, n_same):
+@partial(jit, static_argnums=(4, 5, 6))
+def loglikelihood_fft(
+    params_h: Binary, params_d: Binary, f_l, f_h, n, n_same, S_n=S_n_LISA
+):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
     maximized over the distance to the binary, Phi_c and t_c (i.e., all
     extrinsic parameters).
     """
     # Waveform magnitude
-    ip_hh = calculate_SNR(params_h, f_l, f_h, n_same) ** 2
+    ip_hh = calculate_SNR(params_h, f_l, f_h, n_same, S_n) ** 2
     # Inner product of waveforms, maximized over Phi_c by taking absolute value
-    ip_hd = calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n)
+    ip_hd = calculate_match_unnormd_fft(params_h, params_d, f_l, f_h, n, S_n)
     # Maximize over distance
     return 1 / 2 * ip_hd ** 2 / ip_hh
