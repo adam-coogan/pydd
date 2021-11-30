@@ -4,6 +4,7 @@ import click
 import dynesty
 from dynesty import plotting as dyplot
 from dynesty.results import Results
+import jax
 import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
@@ -38,7 +39,7 @@ def run_ns_v(
         dd_s.M_chirp / MSUN + dM_chirp_v_max,
     )
     ptform_v = lambda u: get_ptform_v(u, M_chirp_MSUN_range_v)
-    loglikelihood_v = get_loglikelihood_fn_v(dd_s)
+    loglikelihood_v = jax.jit(get_loglikelihood_fn_v(dd_s))
 
     # Run
     sampler_v = dynesty.NestedSampler(
@@ -80,7 +81,7 @@ def run_ns(
     ptform = lambda u: get_ptform(
         u, gamma_s_range, rho_6T_range, log10_q_range, dM_chirp_MSUN_range, dd_s
     )
-    loglikelihood = get_loglikelihood_fn(dd_s)
+    loglikelihood = jax.jit(get_loglikelihood_fn(dd_s))
 
     # Run
     sampler = dynesty.NestedSampler(loglikelihood, ptform, 4, nlive=500)

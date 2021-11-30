@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
@@ -9,11 +8,8 @@ from pydd.binary import (
     PC,
     VacuumBinary,
     YR,
-    get_c_f,
     get_f_isco,
     get_m_1,
-    get_m_2,
-    get_rho_s,
     make_dynamic_dress,
     t_to_c,
 )
@@ -49,18 +45,14 @@ def get_loglikelihood_fn(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
         gamma_s, rho_6T, M_chirp_MSUN, log10_q = x
         M_chirp = M_chirp_MSUN * MSUN
         q = 10 ** log10_q
-        m_1 = get_m_1(M_chirp, q)
-        m_2 = get_m_2(M_chirp, q)
         rho_6 = rho_6T_to_rho6(rho_6T)
-        rho_s = get_rho_s(rho_6, m_1, gamma_s)
-        c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
-        f_c = get_f_isco(m_1)
+        f_c = get_f_isco(get_m_1(M_chirp, q))
         dd_h = DynamicDress(
-            gamma_s, c_f, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c
+            gamma_s, rho_6, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c
         )
         return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
 
-    return jax.jit(_ll)
+    return _ll
 
 
 def get_ptform(
@@ -89,7 +81,7 @@ def get_loglikelihood_fn_v(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
         dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
         return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
 
-    return jax.jit(_ll)
+    return _ll
 
 
 def get_ptform_v(u, M_chirp_MSUN_range):
@@ -114,9 +106,8 @@ def setup_system(gamma_s, rho_6):
     """
     m_1 = jnp.array(M_1_BM)
     m_2 = jnp.array(M_2_BM)
-    rho_s = get_rho_s(rho_6, m_1, gamma_s)
 
-    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s, dL=jnp.array(DL_BM))
+    dd_s = make_dynamic_dress(m_1, m_2, rho_6, gamma_s, dL=jnp.array(DL_BM))
 
     f_l = root_scalar(
         lambda f: t_to_c(f, dd_s) - t_obs_lisa,
