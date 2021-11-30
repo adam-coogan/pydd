@@ -8,7 +8,7 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 from tqdm.auto import tqdm
 
-from pydd.analysis import calculate_SNR, calculate_match_unnormd_fft
+from pydd.analysis import calculate_SNR, calculate_match_unnormd_fft, get_match_pads
 from pydd.binary import (
     DynamicDress,
     MSUN,
@@ -21,13 +21,15 @@ from pydd.binary import (
 from utils import (
     M_1_BM,
     M_2_BM,
-    get_loglikelihood_v,
+    get_loglikelihood_fn_v,
     rho_6T_to_rho6,
     rho_6_to_rho6T,
     setup_system,
 )
 
 """
+This script is currently a slow memory hog to the point of being useless.
+
 For dark dresses with fixed BH masses and various rho_6 and gamma_s values,
 computes the naive dephasing, best-fit vacuum system and its dephasing, chirp
 mass bias and SNR loss.
@@ -41,7 +43,8 @@ def fit_v(dd_s: DynamicDress, f_l) -> VacuumBinary:
     """
     Find best-fit vacuum system.
     """
-    fun = lambda x: -get_loglikelihood_v([x], dd_s, f_l)
+    loglikelihood_v = get_loglikelihood_fn_v(dd_s, f_l, n_f=1000)
+    fun = lambda x: -loglikelihood_v([x])
     bracket = (dd_s.M_chirp / MSUN, dd_s.M_chirp / MSUN + 1e-1)
     res = minimize_scalar(fun, bracket, tol=1e-15)
 
@@ -63,9 +66,8 @@ def get_M_chirp_err(dd_v: VacuumBinary, dd_s: DynamicDress, f_l) -> jnp.ndarray:
     """
     M_chirp_MSUN = dd_v.M_chirp / MSUN
     M_chirp_MSUN_grid = jnp.linspace(M_chirp_MSUN - 2e-5, M_chirp_MSUN + 2e-5, 500)
-    loglikelihoods = jax.lax.map(
-        lambda x: get_loglikelihood_v([x], dd_s, f_l), M_chirp_MSUN_grid
-    )
+    loglikelihood_v = get_loglikelihood_fn_v(dd_s, f_l, n_f=1000)
+    loglikelihoods = jax.lax.map(lambda x: loglikelihood_v([x]), M_chirp_MSUN_grid)
     norm = jnp.trapz(jnp.exp(loglikelihoods), M_chirp_MSUN_grid)
     return jnp.sqrt(
         jnp.trapz(
@@ -111,7 +113,7 @@ def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix
     for i, rho_6 in enumerate(tqdm(rho_6s)):
         for j, gamma_s in enumerate(gamma_ss):
             dd_s, f_l = setup_system(gamma_s, rho_6)
-            fs = jnp.linspace(f_l, dd_s.f_c, 3000)
+            fs = jnp.linspace(f_l, dd_s.f_c, 30)
 
             results["snrs"][i, j] = calculate_SNR(dd_s, fs)
             results["rho_ss"][i, j] = get_rho_s(rho_6, M_1_BM, gamma_s)
@@ -126,8 +128,10 @@ def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix
             if rho_6_to_rho6T(rho_6) < 5e-2:
                 dd_v_best = fit_v(dd_s, f_l)
                 results["M_chirp_MSUN_bests"][i, j] = dd_v_best.M_chirp / MSUN
+                fs = jnp.linspace(f_l, dd_s.f_c, 100)
+                pad_low, pad_high = get_match_pads(fs)
                 results["matches"][i, j] = calculate_match_unnormd_fft(
-                    dd_v_best, dd_s, f_l, dd_s.f_c, 100_000
+                    dd_v_best, dd_s, fs, pad_low, pad_high
                 )
                 results["dNs"][i, j] = (
                     Phi_to_c(f_l, dd_v_best) - Phi_to_c(f_l, dd_s)
