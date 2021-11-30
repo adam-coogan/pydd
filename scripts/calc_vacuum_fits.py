@@ -2,7 +2,6 @@ from math import pi
 import os
 
 import click
-import jax
 import jax.numpy as jnp
 import numpy as np
 from scipy.optimize import minimize_scalar
@@ -28,14 +27,9 @@ from utils import (
 )
 
 """
-This script is currently a slow memory hog to the point of being useless.
-
 For dark dresses with fixed BH masses and various rho_6 and gamma_s values,
 computes the naive dephasing, best-fit vacuum system and its dephasing, chirp
 mass bias and SNR loss.
-
-This script gets the job done, but is poorly optimized and will use a huge
-amount of memory.
 """
 
 
@@ -66,8 +60,11 @@ def get_M_chirp_err(dd_v: VacuumBinary, dd_s: DynamicDress, f_l) -> jnp.ndarray:
     """
     M_chirp_MSUN = dd_v.M_chirp / MSUN
     M_chirp_MSUN_grid = jnp.linspace(M_chirp_MSUN - 2e-5, M_chirp_MSUN + 2e-5, 500)
-    loglikelihood_v = get_loglikelihood_fn_v(dd_s, f_l, n_f=1000)
-    loglikelihoods = jax.lax.map(lambda x: loglikelihood_v([x]), M_chirp_MSUN_grid)
+    # Wrap and jit
+    ll = get_loglikelihood_fn_v(dd_s, f_l, n_f=1000)
+    loglikelihoods = jnp.array([ll([x]) for x in M_chirp_MSUN_grid])
+    # Rough check the mass grid is wide enough to capture the posterior
+    assert jnp.exp(loglikelihoods.max()) / jnp.exp(loglikelihoods.min()) > 100
     norm = jnp.trapz(jnp.exp(loglikelihoods), M_chirp_MSUN_grid)
     return jnp.sqrt(
         jnp.trapz(
@@ -128,14 +125,17 @@ def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix
             if rho_6_to_rho6T(rho_6) < 5e-2:
                 dd_v_best = fit_v(dd_s, f_l)
                 results["M_chirp_MSUN_bests"][i, j] = dd_v_best.M_chirp / MSUN
+
                 fs = jnp.linspace(f_l, dd_s.f_c, 100)
                 pad_low, pad_high = get_match_pads(fs)
                 results["matches"][i, j] = calculate_match_unnormd_fft(
                     dd_v_best, dd_s, fs, pad_low, pad_high
                 )
+
                 results["dNs"][i, j] = (
                     Phi_to_c(f_l, dd_v_best) - Phi_to_c(f_l, dd_s)
                 ) / (2 * pi)
+
                 results["M_chirp_MSUN_best_errs"][i, j] = get_M_chirp_err(
                     dd_v_best, dd_s, f_l
                 )
