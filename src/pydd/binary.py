@@ -32,6 +32,7 @@ class VacuumBinary(NamedTuple):
     """
     GR-in-vacuum binary.
     """
+
     M_chirp: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
@@ -43,6 +44,7 @@ class StaticDress(NamedTuple):
     """
     A dark dress with a non-evolving DM halo.
     """
+
     gamma_s: jnp.ndarray
     c_f: jnp.ndarray
     M_chirp: jnp.ndarray
@@ -56,6 +58,7 @@ class DynamicDress(NamedTuple):
     """
     A dark dress with an evolving DM halo.
     """
+
     gamma_s: jnp.ndarray
     c_f: jnp.ndarray
     M_chirp: jnp.ndarray
@@ -71,6 +74,7 @@ class HypGeomDress(NamedTuple):
     Abstract approximation of a dark dress with hypergeometric phase
     parametrization.
     """
+
     lam: jnp.ndarray
     eta: jnp.ndarray
     M_chirp: jnp.ndarray
@@ -168,7 +172,8 @@ def Psi(f, params: Binary):
 
 @jit
 def h_0(f, params: Binary):
-    return (
+    return jnp.where(
+        f <= params.f_c,
         1
         / 2
         * 4
@@ -176,7 +181,8 @@ def h_0(f, params: Binary):
         * (G * params.M_chirp) ** (5 / 3)
         * f ** (2 / 3)
         / C ** 4
-        * jnp.sqrt(2 * pi / abs(d2Phi_dt2(f, params)))
+        * jnp.sqrt(2 * pi / abs(d2Phi_dt2(f, params))),
+        0.0,
     )
 
 
@@ -330,9 +336,7 @@ def get_th_s(gamma_s):
 def _Phi_to_c_indef_s(f, params: StaticDress):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
-    return (
-        get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
-    )
+    return get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
 
 
 @jit

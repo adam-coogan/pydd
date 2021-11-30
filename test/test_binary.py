@@ -37,11 +37,12 @@ def test_SNR_loglikelihood(verbose=False):
         f_c_h,
     )
 
-    snr_s = calculate_SNR(dd_s, f_l, f_h, 3000).block_until_ready()
-    snr_h = calculate_SNR(dd_h, f_l, f_h, 3000).block_until_ready()
-    ll_ss = loglikelihood(dd_s, dd_s, f_l, f_h, 3000, 3000).block_until_ready()
-    ll_hh = loglikelihood(dd_h, dd_h, f_l, f_h, 3000, 3000).block_until_ready()
-    ll_hs = loglikelihood(dd_h, dd_s, f_l, f_h, 3000, 3000).block_until_ready()
+    fs = jnp.linspace(f_l, f_h, 3000)
+    snr_s = calculate_SNR(dd_s, fs).block_until_ready()
+    snr_h = calculate_SNR(dd_h, fs).block_until_ready()
+    ll_ss = loglikelihood(dd_s, dd_s, fs).block_until_ready()
+    ll_hh = loglikelihood(dd_h, dd_h, fs).block_until_ready()
+    ll_hs = loglikelihood(dd_h, dd_s, fs).block_until_ready()
 
     if verbose:
         print("SNR(s) = ", snr_s)
