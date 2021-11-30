@@ -1,8 +1,7 @@
 import jax.numpy as jnp
-import numpy as np
 from scipy.optimize import root_scalar
 
-from pydd.analysis import loglikelihood_fft
+from pydd.analysis import loglikelihood_fft, get_match_pads
 from pydd.binary import (
     DynamicDress,
     MSUN,
@@ -50,9 +49,10 @@ def get_loglikelihood(x, dd_s, f_l):
     f_c = get_f_isco(m_1)
 
     dd_h = DynamicDress(gamma_s, c_f, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c)
-
     f_h = jnp.maximum(dd_s.f_c, dd_h.f_c)
-    return loglikelihood_fft(dd_h, dd_s, f_l, f_h, 100000, 3000)
+    fs = jnp.linspace(f_l, f_h, 100000)
+    pad_low, pad_high = get_match_pads(fs)
+    return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
 
 
 def get_ptform(
@@ -75,7 +75,9 @@ def get_loglikelihood_v(x, dd_s, f_l):
     """
     # Unpack parameters into dark dress ones
     dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
-    return loglikelihood_fft(dd_h, dd_s, f_l, dd_s.f_c, 100000, 3000)
+    fs = jnp.linspace(f_l, dd_s.f_c, 100000)
+    pad_low, pad_high = get_match_pads(fs)
+    return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
 
 
 def get_ptform_v(u, M_chirp_MSUN_range):

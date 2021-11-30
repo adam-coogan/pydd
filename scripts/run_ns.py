@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
 from pydd.binary import DynamicDress, MSUN, PC, get_rho_s
-from plot_ns import labels, quantiles_2d, smooth
+from plot_measurability import labels, quantiles_2d, smooth
 from utils import (
     get_loglikelihood,
     get_loglikelihood_v,

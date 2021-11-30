@@ -39,7 +39,8 @@ if __name__ == "__main__":
                 xtol=1e-100,
             ).root
             f_ls[i, j] = f_l
-            snrs[i, j] = calculate_SNR(dd_v, f_l, f_c, 3000)
+            fs = jnp.linspace(f_l, f_c, 3000)
+            snrs[i, j] = calculate_SNR(dd_v, fs)
 
     plt.figure(figsize=(4, 3.5))
 

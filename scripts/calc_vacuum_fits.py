@@ -111,8 +111,9 @@ def run(n_rho, n_gamma, rho_6t_min, rho_6t_max, gamma_s_min, gamma_s_max, suffix
     for i, rho_6 in enumerate(tqdm(rho_6s)):
         for j, gamma_s in enumerate(gamma_ss):
             dd_s, f_l = setup_system(gamma_s, rho_6)
+            fs = jnp.linspace(f_l, dd_s.f_c, 3000)
 
-            results["snrs"][i, j] = calculate_SNR(dd_s, f_l, dd_s.f_c, 3000)
+            results["snrs"][i, j] = calculate_SNR(dd_s, fs)
             results["rho_ss"][i, j] = get_rho_s(rho_6, M_1_BM, gamma_s)
 
             # Dephasing relative to system with no DM
