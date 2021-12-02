@@ -4,14 +4,15 @@ import click
 import dynesty
 from dynesty import plotting as dyplot
 from dynesty.results import Results
+import jax
 import jax.numpy as jnp
 from scipy.optimize import root_scalar
 
+from plot_measurability import labels, quantiles_2d, smooth
 from pydd.binary import DynamicDress, MSUN, PC, get_rho_s
-from plot_ns import labels, quantiles_2d, smooth
 from utils import (
-    get_loglikelihood,
-    get_loglikelihood_v,
+    get_loglikelihood_fn,
+    get_loglikelihood_fn_v,
     get_ptform,
     get_ptform_v,
     rho_6T_to_rho6,
@@ -26,7 +27,7 @@ Runs nested sampler for a system
 
 
 def run_ns_v(
-    dd_s: DynamicDress, f_l, base_path: str, dM_chirp_v_min, dM_chirp_v_max
+    dd_s: DynamicDress, base_path: str, dM_chirp_v_min, dM_chirp_v_max
 ) -> Results:
     """
     Runs nested sampling for a vacuum system given a signal system dd_s. Saves
@@ -38,7 +39,7 @@ def run_ns_v(
         dd_s.M_chirp / MSUN + dM_chirp_v_max,
     )
     ptform_v = lambda u: get_ptform_v(u, M_chirp_MSUN_range_v)
-    loglikelihood_v = lambda x: get_loglikelihood_v(x, dd_s, f_l)
+    loglikelihood_v = jax.jit(get_loglikelihood_fn_v(dd_s))
 
     # Run
     sampler_v = dynesty.NestedSampler(
@@ -61,7 +62,6 @@ def run_ns_v(
 
 def run_ns(
     dd_s: DynamicDress,
-    f_l,
     base_path: str,
     rho_6T_min,
     rho_6T_max,
@@ -81,7 +81,7 @@ def run_ns(
     ptform = lambda u: get_ptform(
         u, gamma_s_range, rho_6T_range, log10_q_range, dM_chirp_MSUN_range, dd_s
     )
-    loglikelihood = lambda x: get_loglikelihood(x, dd_s, f_l)
+    loglikelihood = jax.jit(get_loglikelihood_fn(dd_s))
 
     # Run
     sampler = dynesty.NestedSampler(loglikelihood, ptform, 4, nlive=500)
@@ -155,16 +155,16 @@ def run(
     base_path = f"rho_6T={rho_6t:g}_gamma_s={gamma_s:g}{suffix}"
     print("Base filename for plots, results and Bayes factor:", base_path)
     rho_6 = rho_6T_to_rho6(rho_6t)
-    dd_s, f_l = setup_system(gamma_s, rho_6)
+    dd_s = setup_system(gamma_s, rho_6)[0]
 
     # Run nested sampling
     results = run_ns(
-        dd_s, f_l, base_path, rho_6t_min, rho_6t_max, dm_chirp_abs, gamma_s, rho_6t
+        dd_s, base_path, rho_6t_min, rho_6t_max, dm_chirp_abs, gamma_s, rho_6t
     )
     print("Dark dress results:\n", results.summary())
 
     if calc_bf:
-        results_v = run_ns_v(dd_s, f_l, base_path, dm_chirp_v_min, dm_chirp_v_max)
+        results_v = run_ns_v(dd_s, base_path, dm_chirp_v_min, dm_chirp_v_max)
         print("Vacuum results:\n", results_v.summary())
 
         # Correction for rho_6T prior, extending up to the most extreme rho_6T value

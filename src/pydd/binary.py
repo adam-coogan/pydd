@@ -32,6 +32,7 @@ class VacuumBinary(NamedTuple):
     """
     GR-in-vacuum binary.
     """
+
     M_chirp: jnp.ndarray
     Phi_c: jnp.ndarray
     tT_c: jnp.ndarray
@@ -43,6 +44,7 @@ class StaticDress(NamedTuple):
     """
     A dark dress with a non-evolving DM halo.
     """
+
     gamma_s: jnp.ndarray
     c_f: jnp.ndarray
     M_chirp: jnp.ndarray
@@ -56,8 +58,9 @@ class DynamicDress(NamedTuple):
     """
     A dark dress with an evolving DM halo.
     """
+
     gamma_s: jnp.ndarray
-    c_f: jnp.ndarray
+    rho_6: jnp.ndarray
     M_chirp: jnp.ndarray
     q: jnp.ndarray
     Phi_c: jnp.ndarray
@@ -66,22 +69,7 @@ class DynamicDress(NamedTuple):
     f_c: jnp.ndarray
 
 
-class HypGeomDress(NamedTuple):
-    """
-    Abstract approximation of a dark dress with hypergeometric phase
-    parametrization.
-    """
-    lam: jnp.ndarray
-    eta: jnp.ndarray
-    M_chirp: jnp.ndarray
-    f_b: jnp.ndarray
-    Phi_c: jnp.ndarray
-    tT_c: jnp.ndarray
-    dL: jnp.ndarray
-    f_c: jnp.ndarray
-
-
-Binary = Union[VacuumBinary, StaticDress, DynamicDress, HypGeomDress]
+Binary = Union[VacuumBinary, StaticDress, DynamicDress]
 
 
 @jit
@@ -116,11 +104,20 @@ def get_r_s(m_1, rho_s, gamma_s):
 
 @jit
 def get_rho_s(rho_6, m_1, gamma_s):
+    a = 0.2
     r_6 = 1e-6 * PC
-    m_tilde = ((3 - gamma_s) * (0.2) ** (3 - gamma_s)) * m_1 / (2 * jnp.pi)
+    m_tilde = ((3 - gamma_s) * a ** (3 - gamma_s)) * m_1 / (2 * jnp.pi)
     return (rho_6 * r_6 ** gamma_s / (m_tilde ** (gamma_s / 3))) ** (
         1 / (1 - gamma_s / 3)
     )
+
+
+@jit
+def get_rho_6(rho_s, m_1, gamma_s):
+    a = 0.2
+    r_s = ((3 - gamma_s) * a ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
+    r_6 = 1e-6 * PC
+    return rho_s * (r_6 / r_s) ** -gamma_s
 
 
 @jit
@@ -168,7 +165,8 @@ def Psi(f, params: Binary):
 
 @jit
 def h_0(f, params: Binary):
-    return (
+    return jnp.where(
+        f <= params.f_c,
         1
         / 2
         * 4
@@ -176,7 +174,8 @@ def h_0(f, params: Binary):
         * (G * params.M_chirp) ** (5 / 3)
         * f ** (2 / 3)
         / C ** 4
-        * jnp.sqrt(2 * pi / abs(d2Phi_dt2(f, params)))
+        * jnp.sqrt(2 * pi / abs(d2Phi_dt2(f, params))),
+        0.0,
     )
 
 
@@ -206,8 +205,6 @@ def _Phi_to_c_indef(f, params: Binary):
         return _Phi_to_c_indef_s(f, params)
     elif isinstance(params, DynamicDress):
         return _Phi_to_c_indef_d(f, params)
-    elif isinstance(params, HypGeomDress):
-        return _Phi_to_c_indef_h(f, params)
     else:
         raise ValueError("unrecognized type")
 
@@ -220,8 +217,6 @@ def _t_to_c_indef(f, params: Binary):
         return _t_to_c_indef_s(f, params)
     elif isinstance(params, DynamicDress):
         return _t_to_c_indef_d(f, params)
-    elif isinstance(params, HypGeomDress):
-        return _t_to_c_indef_h(f, params)
     else:
         raise ValueError("'params' type is not supported")
 
@@ -234,8 +229,6 @@ def d2Phi_dt2(f, params: Binary):
         return d2Phi_dt2_s(f, params)
     elif isinstance(params, DynamicDress):
         return d2Phi_dt2_d(f, params)
-    elif isinstance(params, HypGeomDress):
-        return d2Phi_dt2_h(f, params)
     else:
         raise ValueError("'params' type is not supported")
 
@@ -330,9 +323,7 @@ def get_th_s(gamma_s):
 def _Phi_to_c_indef_s(f, params: StaticDress):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
-    return (
-        get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
-    )
+    return get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
 
 
 @jit
@@ -360,12 +351,13 @@ def d2Phi_dt2_s(f, params: StaticDress):
 def make_static_dress(
     m_1,
     m_2,
-    rho_s,
+    rho_6,
     gamma_s,
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
 ) -> StaticDress:
+    rho_s = get_rho_s(rho_6, m_1, gamma_s)
     c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
@@ -420,7 +412,11 @@ def get_lam(gamma_s):
 @jit
 def get_eta(params: DynamicDress):
     GAMMA_E = 5 / 2
-    f_eq = get_f_eq(params.gamma_s, params.c_f)
+    m_1 = get_m_1(params.M_chirp, params.q)
+    m_2 = get_m_2(params.M_chirp, params.q)
+    rho_s = get_rho_s(params.rho_6, m_1, params.gamma_s)
+    c_f = get_c_f(m_1, m_2, rho_s, params.gamma_s)
+    f_eq = get_f_eq(params.gamma_s, c_f)
     f_t = get_f_b_d(params)
     return (
         (5 + 2 * GAMMA_E)
@@ -520,146 +516,39 @@ def d2Phi_dt2_d(f, params: DynamicDress):
 def make_dynamic_dress(
     m_1,
     m_2,
-    rho_s,
+    rho_6,
     gamma_s,
     Phi_c=jnp.array(0.0),
     t_c=None,
     dL=jnp.array(1e8 * PC),
 ) -> DynamicDress:
-    c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
     f_c = get_f_isco(m_1)
-    return DynamicDress(gamma_s, c_f, M_chirp, m_2 / m_1, Phi_c, tT_c, dL, f_c)
+    return DynamicDress(gamma_s, rho_6, M_chirp, m_2 / m_1, Phi_c, tT_c, dL, f_c)
 
 
 def convert(params: Binary, NewType) -> Binary:
     """
     Change binary's type by dropping attributes.
     """
-    if isinstance(params, StaticDress) and NewType is DynamicDress:
-        raise ValueError("cannot convert a StaticDress to a DynamicDress")
-    elif isinstance(params, VacuumBinary) and NewType in [StaticDress, DynamicDress]:
-        raise ValueError(
-            "cannot convert a StaticDress to a StaticDress or DynamicDress"
+    if isinstance(params, DynamicDress) and NewType is StaticDress:
+        m_1 = get_m_1(params.M_chirp, params.q)
+        m_2 = get_m_2(params.M_chirp, params.q)
+        rho_s = get_rho_s(params.rho_6, m_1, params.gamma_s)
+        c_f = get_c_f(m_1, m_2, rho_s, params.gamma_s)
+        return StaticDress(
+            params.gamma_s,
+            c_f,
+            params.M_chirp,
+            params.Phi_c,
+            params.tT_c,
+            params.dL,
+            params.f_c,
         )
-    elif isinstance(params, HypGeomDress) or NewType is HypGeomDress:
-        raise ValueError("conversion to/from HypGeomDress not supported yet")
-
-    return NewType(**{f: getattr(params, f) for f in NewType._fields})
-
-
-# General hypergeometric
-@jit
-def _Phi_to_c_indef_h(f, params: HypGeomDress):
-    x = f / params.f_b
-    th = get_th_d()
-    return (
-        get_a_v(params.M_chirp)
-        / f ** (5 / 3)
-        * (
-            1
-            - params.eta
-            * x ** (-params.lam)
-            * (1 - hypgeom(th, -(x ** (-5 / (3 * th)))))
-        )
-    )
-
-
-@jit
-def _t_to_c_indef_h(f, params: HypGeomDress):
-    x = f / params.f_b
-    th = get_th_d()
-    coeff = (
-        get_a_v(params.M_chirp)
-        * x ** (-params.lam)
-        / (16 * pi * (1 + params.lam) * (8 + 3 * params.lam) * f ** (8 / 3))
-    )
-    term_1 = 5 * (1 + params.lam) * (8 + 3 * params.lam) * x ** params.lam
-    term_2 = (
-        8
-        * params.lam
-        * (8 + 3 * params.lam)
-        * params.eta
-        * hypgeom(th, -(x ** (-5 / (3 * th))))
-    )
-    term_3 = (
-        -40
-        * (1 + params.lam)
-        * params.eta
-        * hypgeom(
-            -1 / 5 * th * (8 + 3 * params.lam),
-            -(x ** (5 / (3 * th))),
-        )
-    )
-    term_4 = (
-        -8
-        * params.lam
-        * params.eta
-        * (
-            3
-            + 3 * params.lam
-            + 5
-            * hypgeom(
-                1 / 5 * th * (8 + 3 * params.lam),
-                -(x ** (-5 / (3 * th))),
-            )
-        )
-    )
-    return coeff * (term_1 + term_2 + term_3 + term_4)
-
-
-@jit
-def d2Phi_dt2_h(f, params: HypGeomDress):
-    x = f / params.f_b
-    th = get_th_d()
-    return (
-        12
-        * pi ** 2
-        * f ** (11 / 3)
-        * x ** params.lam
-        * (1 + x ** (5 / (3 * th)))
-        / (
-            get_a_v(params.M_chirp)
-            * (
-                5 * x ** params.lam
-                - 5 * params.eta
-                - 3 * params.eta * params.lam
-                + x ** (5 / (3 * th))
-                * (5 * x ** params.lam - 3 * params.eta * params.lam)
-                + 3
-                * (1 + x ** (5 / (3 * th)))
-                * params.eta
-                * params.lam
-                * hypgeom(th, -(x ** (-5 / (3 * th))))
-            )
-        )
-    )
-
-
-@jit
-def make_hypgeom_dress(
-    m_1,
-    m_2,
-    rho_s,
-    gamma_s,
-    Phi_c=jnp.array(0.0),
-    t_c=None,
-    dL=jnp.array(1e8 * PC),
-) -> HypGeomDress:
-    GAMMA_E = jnp.array(5 / 2)
-    lam = (11 - 2 * (gamma_s + GAMMA_E)) / 3
-    c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
-    f_eq = get_f_eq(gamma_s, c_f)
-    f_b = get_f_b(m_1, m_2, gamma_s)
-    eta = (
-        (5 + 2 * GAMMA_E)
-        / (2 * (8 - gamma_s))
-        * (f_eq / f_b) ** ((11 - 2 * gamma_s) / 3)
-    )
-    M_chirp = get_M_chirp(m_1, m_2)
-
-    tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    f_c = get_f_isco(m_1)
-
-    return HypGeomDress(lam, eta, M_chirp, f_b, Phi_c, tT_c, dL, f_c)
+    elif (
+        isinstance(params, StaticDress) or isinstance(params, DynamicDress)
+    ) and NewType is VacuumBinary:
+        return VacuumBinary(**{f: getattr(params, f) for f in VacuumBinary._fields})
+    else:
+        raise ValueError("invalid conversion")

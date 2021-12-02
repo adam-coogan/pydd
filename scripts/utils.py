@@ -1,19 +1,15 @@
 import jax.numpy as jnp
-import numpy as np
 from scipy.optimize import root_scalar
 
-from pydd.analysis import loglikelihood_fft
+from pydd.analysis import get_match_pads, loglikelihood_fft
 from pydd.binary import (
     DynamicDress,
     MSUN,
     PC,
     VacuumBinary,
     YR,
-    get_c_f,
     get_f_isco,
     get_m_1,
-    get_m_2,
-    get_rho_s,
     make_dynamic_dress,
     t_to_c,
 )
@@ -23,6 +19,9 @@ Useful definitions shared among scripts.
 """
 
 t_obs_lisa = 5 * YR
+f_l = 1e-3  # Hz. Ideally would go down to 2e-5.
+f_h = 1.0  # Hz. See fig. 1 of LISA Science Requirements.
+n_f = 100000
 
 
 def rho_6_to_rho6T(rho_6):
@@ -33,26 +32,27 @@ def rho_6T_to_rho6(rho_6T):
     return rho_6T * 1e16 * (MSUN / PC ** 3)
 
 
-def get_loglikelihood(x, dd_s, f_l):
+def get_loglikelihood_fn(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
     """
     x: parameter point
     dd_s: signal system
     """
-    # Unpack parameters into dark dress ones
-    gamma_s, rho_6T, M_chirp_MSUN, log10_q = x
-    M_chirp = M_chirp_MSUN * MSUN
-    q = 10 ** log10_q
-    m_1 = get_m_1(M_chirp, q)
-    m_2 = get_m_2(M_chirp, q)
-    rho_6 = rho_6T_to_rho6(rho_6T)
-    rho_s = get_rho_s(rho_6, m_1, gamma_s)
-    c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
-    f_c = get_f_isco(m_1)
+    fs = jnp.linspace(f_l, f_h, n_f)
+    pad_low, pad_high = get_match_pads(fs)
 
-    dd_h = DynamicDress(gamma_s, c_f, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c)
+    def _ll(x):
+        # Unpack parameters into dark dress ones
+        gamma_s, rho_6T, M_chirp_MSUN, log10_q = x
+        M_chirp = M_chirp_MSUN * MSUN
+        q = 10 ** log10_q
+        rho_6 = rho_6T_to_rho6(rho_6T)
+        f_c = get_f_isco(get_m_1(M_chirp, q))
+        dd_h = DynamicDress(
+            gamma_s, rho_6, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c
+        )
+        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
 
-    f_h = jnp.maximum(dd_s.f_c, dd_h.f_c)
-    return loglikelihood_fft(dd_h, dd_s, f_l, f_h, 100000, 3000)
+    return _ll
 
 
 def get_ptform(
@@ -68,14 +68,20 @@ def get_ptform(
     return jnp.array([gamma_s, rho_6T, M_chirp_MSUN, log10_q])
 
 
-def get_loglikelihood_v(x, dd_s, f_l):
+def get_loglikelihood_fn_v(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
     """
     x: parameter point
     dd_s: signal system
     """
     # Unpack parameters into dark dress ones
-    dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
-    return loglikelihood_fft(dd_h, dd_s, f_l, dd_s.f_c, 100000, 3000)
+    fs = jnp.linspace(f_l, f_h, n_f)
+    pad_low, pad_high = get_match_pads(fs)
+
+    def _ll(x):
+        dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
+        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
+
+    return _ll
 
 
 def get_ptform_v(u, M_chirp_MSUN_range):
@@ -100,9 +106,8 @@ def setup_system(gamma_s, rho_6):
     """
     m_1 = jnp.array(M_1_BM)
     m_2 = jnp.array(M_2_BM)
-    rho_s = get_rho_s(rho_6, m_1, gamma_s)
 
-    dd_s = make_dynamic_dress(m_1, m_2, rho_s, gamma_s, dL=jnp.array(DL_BM))
+    dd_s = make_dynamic_dress(m_1, m_2, rho_6, gamma_s, dL=jnp.array(DL_BM))
 
     f_l = root_scalar(
         lambda f: t_to_c(f, dd_s) - t_obs_lisa,
