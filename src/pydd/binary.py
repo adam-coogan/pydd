@@ -104,11 +104,20 @@ def get_r_s(m_1, rho_s, gamma_s):
 
 @jit
 def get_rho_s(rho_6, m_1, gamma_s):
+    a = 0.2
     r_6 = 1e-6 * PC
-    m_tilde = ((3 - gamma_s) * (0.2) ** (3 - gamma_s)) * m_1 / (2 * jnp.pi)
+    m_tilde = ((3 - gamma_s) * a ** (3 - gamma_s)) * m_1 / (2 * jnp.pi)
     return (rho_6 * r_6 ** gamma_s / (m_tilde ** (gamma_s / 3))) ** (
         1 / (1 - gamma_s / 3)
     )
+
+
+@jit
+def get_rho_6(rho_s, m_1, gamma_s):
+    a = 0.2
+    r_s = ((3 - gamma_s) * a ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
+    r_6 = 1e-6 * PC
+    return rho_s * (r_6 / r_s) ** -gamma_s
 
 
 @jit
