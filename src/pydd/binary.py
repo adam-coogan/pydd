@@ -73,37 +73,37 @@ class DynamicDress(NamedTuple):
 Binary = Union[VacuumBinary, StaticDress, DynamicDress]
 
 
-@jit
+# @jit
 def get_M_chirp(m_1, m_2):
     return (m_1 * m_2) ** (3 / 5) / (m_1 + m_2) ** (1 / 5)
 
 
-@jit
+# @jit
 def get_m_1(M_chirp, q):
     return (1 + q) ** (1 / 5) / q ** (3 / 5) * M_chirp
 
 
-@jit
+# @jit
 def get_m_2(M_chirp, q):
     return (1 + q) ** (1 / 5) * q ** (2 / 5) * M_chirp
 
 
-@jit
+# @jit
 def get_r_isco(m_1):
     return 6 * G * m_1 / C ** 2
 
 
-@jit
+# @jit
 def get_f_isco(m_1):
     return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
 
 
-@jit
+# @jit
 def get_r_s(m_1, rho_s, gamma_s):
     return ((3 - gamma_s) * 0.2 ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
 
 
-@jit
+# @jit
 def get_rho_s(rho_6, m_1, gamma_s):
     a = 0.2
     r_6 = 1e-6 * PC
@@ -113,7 +113,7 @@ def get_rho_s(rho_6, m_1, gamma_s):
     )
 
 
-@jit
+# @jit
 def get_rho_6(rho_s, m_1, gamma_s):
     a = 0.2
     r_s = ((3 - gamma_s) * a ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
@@ -121,13 +121,13 @@ def get_rho_6(rho_s, m_1, gamma_s):
     return rho_s * (r_6 / r_s) ** -gamma_s
 
 
-@jit
+# @jit
 def get_xi(gamma_s):
     # Could use that I_x(a, b) = 1 - I_{1-x}(b, a)
     return 1 - betainc(gamma_s - 1 / 2, 3 / 2, 1 / 2)
 
 
-@jit
+# @jit
 def get_c_f(m_1, m_2, rho_s, gamma_s):
     Lambda = jnp.sqrt(m_1 / m_2)
     M = m_1 + m_2
@@ -144,27 +144,27 @@ def get_c_f(m_1, m_2, rho_s, gamma_s):
     return c_df / c_gw * (G * M / pi ** 2) ** ((11 - 2 * gamma_s) / 6)
 
 
-@jit
+# @jit
 def get_f_eq(gamma_s, c_f):
     return c_f ** (3 / (11 - 2 * gamma_s))
 
 
-@jit
+# @jit
 def get_a_v(M_chirp):
     return 1 / 16 * (C ** 3 / (pi * G * M_chirp)) ** (5 / 3)
 
 
-@jit
+# @jit
 def PhiT(f, params: Binary):
     return 2 * pi * f * t_to_c(f, params) - Phi_to_c(f, params)
 
 
-@jit
+# @jit
 def Psi(f, params: Binary):
     return 2 * pi * f * params.tT_c - params.Phi_c - pi / 4 - PhiT(f, params)
 
 
-@jit
+# @jit
 def h_0(f, params: Binary):
     return jnp.where(
         f <= params.f_c,
@@ -180,7 +180,7 @@ def h_0(f, params: Binary):
     )
 
 
-@jit
+# @jit
 def amp(f, params: Binary):
     """
     Amplitude averaged over inclination angle.
@@ -188,17 +188,17 @@ def amp(f, params: Binary):
     return jnp.sqrt(4 / 5) * h_0(f, params) / params.dL
 
 
-@jit
+# @jit
 def Phi_to_c(f, params: Binary):
     return _Phi_to_c_indef(f, params) - _Phi_to_c_indef(params.f_c, params)
 
 
-@jit
+# @jit
 def t_to_c(f, params: Binary):
     return _t_to_c_indef(f, params) - _t_to_c_indef(params.f_c, params)
 
 
-@jit
+# @jit
 def _Phi_to_c_indef(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return _Phi_to_c_indef_v(f, params)
@@ -210,7 +210,7 @@ def _Phi_to_c_indef(f, params: Binary):
         raise ValueError("unrecognized type")
 
 
-@jit
+# @jit
 def _t_to_c_indef(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return _t_to_c_indef_v(f, params)
@@ -222,7 +222,7 @@ def _t_to_c_indef(f, params: Binary):
         raise ValueError("'params' type is not supported")
 
 
-@jit
+# @jit
 def d2Phi_dt2(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return d2Phi_dt2_v(f, params)
@@ -235,22 +235,22 @@ def d2Phi_dt2(f, params: Binary):
 
 
 # Vacuum binary
-@jit
+# @jit
 def _Phi_to_c_indef_v(f, params: VacuumBinary):
     return get_a_v(params.M_chirp) / f ** (5 / 3)
 
 
-@jit
+# @jit
 def _t_to_c_indef_v(f, params: VacuumBinary):
     return 5 * get_a_v(params.M_chirp) / (16 * pi * f ** (8 / 3))
 
 
-@jit
+# @jit
 def d2Phi_dt2_v(f, params: VacuumBinary):
     return 12 * pi ** 2 * f ** (11 / 3) / (5 * get_a_v(params.M_chirp))
 
 
-@jit
+# @jit
 def make_vacuum_binary(
     m_1,
     m_2,
@@ -315,19 +315,19 @@ hypgeom = hypgeom_jax
 
 
 # Static
-@jit
+# @jit
 def get_th_s(gamma_s):
     return 5 / (11 - 2 * gamma_s)
 
 
-@jit
+# @jit
 def _Phi_to_c_indef_s(f, params: StaticDress):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
     return get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
 
 
-@jit
+# @jit
 def _t_to_c_indef_s(f, params: StaticDress):
     th = get_th_s(params.gamma_s)
     return (
@@ -338,7 +338,7 @@ def _t_to_c_indef_s(f, params: StaticDress):
     )
 
 
-@jit
+# @jit
 def d2Phi_dt2_s(f, params: StaticDress):
     return (
         12
@@ -348,7 +348,7 @@ def d2Phi_dt2_s(f, params: StaticDress):
     )
 
 
-@jit
+# @jit
 def make_static_dress(
     m_1,
     m_2,
@@ -367,7 +367,7 @@ def make_static_dress(
 
 
 # Dynamic
-@jit
+# @jit
 def get_f_b(m_1, m_2, gamma_s):
     """
     Gets the break frequency for a dynamic dress. This scaling relation was
@@ -387,7 +387,7 @@ def get_f_b(m_1, m_2, gamma_s):
     )
 
 
-@jit
+# @jit
 def get_f_b_d(params: DynamicDress):
     """
     Gets the break frequency for a dynamic dress using our scaling relation
@@ -398,19 +398,19 @@ def get_f_b_d(params: DynamicDress):
     return get_f_b(m_1, m_2, params.gamma_s)
 
 
-@jit
+# @jit
 def get_th_d():
     GAMMA_E = 5 / 2
     return 5 / (2 * GAMMA_E)
 
 
-@jit
+# @jit
 def get_lam(gamma_s):
     GAMMA_E = 5 / 2
     return (11 - 2 * (gamma_s + GAMMA_E)) / 3
 
 
-@jit
+# @jit
 def get_eta(params: DynamicDress):
     GAMMA_E = 5 / 2
     m_1 = get_m_1(params.M_chirp, params.q)
@@ -426,7 +426,7 @@ def get_eta(params: DynamicDress):
     )
 
 
-@jit
+# @jit
 def _Phi_to_c_indef_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -443,7 +443,7 @@ def _Phi_to_c_indef_d(f, params: DynamicDress):
     )
 
 
-@jit
+# @jit
 def _t_to_c_indef_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -483,7 +483,7 @@ def _t_to_c_indef_d(f, params: DynamicDress):
     return coeff * (term_1 + term_2 + term_3 + term_4)
 
 
-@jit
+# @jit
 def d2Phi_dt2_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -513,7 +513,7 @@ def d2Phi_dt2_d(f, params: DynamicDress):
     )
 
 
-@jit
+# @jit
 def make_dynamic_dress(
     m_1,
     m_2,
