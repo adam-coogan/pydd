@@ -72,11 +72,60 @@ def loglikelihood(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
     maximized over the distance to the binary and Phi_c.
+
+    Applies frequency cut to the waveform.
     """
     # Waveform magnitude
     ip_hh = calculate_SNR(params_h, fs, S_n) ** 2
     # Inner product of waveforms, maximized over Phi_c by taking absolute value
     ip_hd = calculate_match_unnormd(params_h, params_d, fs, S_n)
+    # Maximize over distance
+    return 1 / 2 * ip_hd ** 2 / ip_hh
+
+
+def calculate_SNR_cut(params: Binary, f_range, fs, S_n=S_n_LISA):
+    integrand = jnp.where(
+        (fs >= f_range[0]) & (fs <= f_range[1]), amp(fs, params) ** 2 / S_n(fs), 0.0
+    )
+    return jnp.sqrt(4 * jnp.trapz(integrand, fs))
+
+
+def calculate_match_unnormd_cut(
+    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n=S_n_LISA
+):
+    """
+    Inner product of waveforms, maximized over Phi_c by taking absolute value.
+
+    Applies frequency cuts to both waveforms.
+    """
+    wf_h = jnp.where(
+        (fs >= f_range_h[0]) & (fs <= f_range_h[1]),
+        amp(fs, params_h) * jnp.exp(1j * Psi(fs, params_h)),
+        0.0,
+    )
+    wf_d = jnp.where(
+        (fs >= f_range_d[0]) & (fs <= f_range_d[1]),
+        amp(fs, params_d) * jnp.exp(1j * Psi(fs, params_d)),
+        0.0,
+    )
+    return jnp.abs(4 * jnp.trapz(wf_h.conj() * wf_d / S_n(fs), fs))
+
+
+def loglikelihood_cut(
+    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n=S_n_LISA
+):
+    """
+    Log-likelihood for a signal from a binary params_d modeled using params_h,
+    maximized over the distance to the binary and Phi_c.
+
+    Applies frequency cuts to both waveforms.
+    """
+    # Waveform magnitude
+    ip_hh = calculate_SNR_cut(params_h, f_range_h, fs, S_n) ** 2
+    # Inner product of waveforms, maximized over Phi_c by taking absolute value
+    ip_hd = calculate_match_unnormd_cut(
+        params_h, params_d, f_range_h, f_range_d, fs, S_n
+    )
     # Maximize over distance
     return 1 / 2 * ip_hd ** 2 / ip_hh
 

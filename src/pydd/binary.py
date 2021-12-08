@@ -6,6 +6,7 @@ from jax import jit
 import jax.numpy as jnp
 from jax.scipy.special import betainc
 from jaxinterp2d import interp2d
+from scipy.optimize import minimize_scalar
 from scipy.special import hyp2f1
 
 
@@ -552,3 +553,23 @@ def convert(params: Binary, NewType) -> Binary:
         return VacuumBinary(**{f: getattr(params, f) for f in VacuumBinary._fields})
     else:
         raise ValueError("invalid conversion")
+
+
+def get_f_range(dd, t_obs):
+    """
+    Finds the frequency range [f(-(t_obs + tT_c)), f(-tT_c)].
+    """
+    # Find frequency t_obs + tT_c before merger
+    bracket = (dd.f_c * 0.001, dd.f_c * 1.1)
+    fn = lambda f_l: (jax.jit(t_to_c)(f_l, dd) - (t_obs + dd.tT_c)) ** 2
+    res = minimize_scalar(fn, bounds=bracket)
+    assert res.success
+    f_l = res.x
+
+    # Find frequency tT_c before merger
+    fn = lambda f_h: (jax.jit(t_to_c)(f_h, dd) - dd.tT_c) ** 2
+    res = minimize_scalar(fn, bracket=bracket)
+    assert res.success
+    f_h = res.x
+
+    return (f_l, f_h)
