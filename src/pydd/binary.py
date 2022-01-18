@@ -270,25 +270,40 @@ def hypgeom_scipy(b, z):
     return hyp2f1(1, b, 1 + b, z)
 
 
-def get_hypgeom_interps(n_bs=5000, n_zs=4950):
-    bs = jnp.linspace(0.5, 1.99, n_bs)
-    log10_abs_zs = jnp.linspace(-8, 6, n_zs)
+def get_hypgeom_interp_pos(n_bs=100, n_zs=750):
+    bs = jnp.linspace(1.6, 2.0, n_bs)  # gamma_s in [2, 3], gamma_e = 5/2
+    log10_abs_zs = jnp.linspace(-8, 7, n_zs)
     zs = -(10 ** log10_abs_zs)
     b_mg, z_mg = jnp.meshgrid(bs, zs, indexing="ij")
 
-    vals_pos = jnp.array(hypgeom_scipy(b_mg, z_mg))
-    vals_neg = jnp.log10(1 - hypgeom_scipy(-b_mg[::-1, :], z_mg))
+    vals_pos = jnp.log10(jnp.array(hypgeom_scipy(b_mg, z_mg)))
 
-    interp_pos = lambda b, z: interp2d(
+    return lambda b, z: 10 ** interp2d(
         b, jnp.log10(-z), bs, log10_abs_zs, vals_pos, jnp.nan
     )
-    interp_neg = lambda b, z: 1 - 10 ** interp2d(
+
+
+def get_hypgeom_interp_neg(n_bs=100, n_zs=500):
+    bs = jnp.linspace(1.6, 2.0, n_bs)  # gamma_s in [2, 3], gamma_e = 5/2
+    log10_abs_zs = jnp.concatenate(
+        (
+            jnp.linspace(-8, -2.5, 20),
+            jnp.linspace(-2.5, 1.5, n_zs)[1:-1],
+            jnp.linspace(1.5, 7, 20),
+        )
+    )
+    zs = -(10 ** log10_abs_zs)
+    b_mg, z_mg = jnp.meshgrid(bs, zs, indexing="ij")
+
+    vals_neg = jnp.log10(1 - hypgeom_scipy(-b_mg[::-1, :], z_mg))
+
+    return lambda b, z: 1 - 10 ** interp2d(
         b, jnp.log10(-z), -bs[::-1], log10_abs_zs, vals_neg, jnp.nan
     )
-    return interp_pos, interp_neg
 
 
-interp_pos, interp_neg = get_hypgeom_interps()
+interp_pos = get_hypgeom_interp_pos()
+interp_neg = get_hypgeom_interp_neg()
 
 
 def restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
@@ -298,13 +313,8 @@ def restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
     )
 
 
-@jit
+@jax.jit
 def hypgeom_jax(b, z: jnp.ndarray) -> jnp.ndarray:
-    # print(
-    #     f"b: {b}, "
-    #     f"log10(|z|) min: {jnp.log10(jnp.abs(z)).min()}, "
-    #     f"log10(|z|) max: {jnp.log10(jnp.abs(z)).max()}"
-    # )
     return jax.lax.cond(
         b == 1, lambda z: jnp.log(1 - z) / (-z), lambda z: restricted_hypgeom(b, z), z
     )
