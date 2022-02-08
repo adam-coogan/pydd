@@ -1,14 +1,16 @@
 from math import pi
-from typing import NamedTuple, Union
+from typing import Callable, NamedTuple, Tuple, Union
 
 import jax
-from jax import jit
 import jax.numpy as jnp
 from jax.scipy.special import betainc
-from jaxinterp2d import interp2d
 from scipy.optimize import minimize_scalar
 from scipy.special import hyp2f1
 
+from .utils import CartesianGrid
+
+
+Array = jnp.ndarray
 
 """
 Functions for computing waveforms and various parameters for different types of
@@ -34,11 +36,11 @@ class VacuumBinary(NamedTuple):
     GR-in-vacuum binary.
     """
 
-    M_chirp: jnp.ndarray
-    Phi_c: jnp.ndarray
-    tT_c: jnp.ndarray
-    dL: jnp.ndarray
-    f_c: jnp.ndarray
+    M_chirp: Array
+    Phi_c: Array
+    tT_c: Array
+    dL: Array
+    f_c: Array
 
 
 class StaticDress(NamedTuple):
@@ -46,13 +48,13 @@ class StaticDress(NamedTuple):
     A dark dress with a non-evolving DM halo.
     """
 
-    gamma_s: jnp.ndarray
-    c_f: jnp.ndarray
-    M_chirp: jnp.ndarray
-    Phi_c: jnp.ndarray
-    tT_c: jnp.ndarray
-    dL: jnp.ndarray
-    f_c: jnp.ndarray
+    gamma_s: Array
+    c_f: Array
+    M_chirp: Array
+    Phi_c: Array
+    tT_c: Array
+    dL: Array
+    f_c: Array
 
 
 class DynamicDress(NamedTuple):
@@ -60,50 +62,43 @@ class DynamicDress(NamedTuple):
     A dark dress with an evolving DM halo.
     """
 
-    gamma_s: jnp.ndarray
-    rho_6: jnp.ndarray
-    M_chirp: jnp.ndarray
-    q: jnp.ndarray
-    Phi_c: jnp.ndarray
-    tT_c: jnp.ndarray
-    dL: jnp.ndarray
-    f_c: jnp.ndarray
+    gamma_s: Array
+    rho_6: Array
+    M_chirp: Array
+    q: Array
+    Phi_c: Array
+    tT_c: Array
+    dL: Array
+    f_c: Array
 
 
 Binary = Union[VacuumBinary, StaticDress, DynamicDress]
 
 
-# @jit
 def get_M_chirp(m_1, m_2):
     return (m_1 * m_2) ** (3 / 5) / (m_1 + m_2) ** (1 / 5)
 
 
-# @jit
 def get_m_1(M_chirp, q):
     return (1 + q) ** (1 / 5) / q ** (3 / 5) * M_chirp
 
 
-# @jit
 def get_m_2(M_chirp, q):
     return (1 + q) ** (1 / 5) * q ** (2 / 5) * M_chirp
 
 
-# @jit
 def get_r_isco(m_1):
     return 6 * G * m_1 / C ** 2
 
 
-# @jit
 def get_f_isco(m_1):
     return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
 
 
-# @jit
 def get_r_s(m_1, rho_s, gamma_s):
     return ((3 - gamma_s) * 0.2 ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
 
 
-# @jit
 def get_rho_s(rho_6, m_1, gamma_s):
     a = 0.2
     r_6 = 1e-6 * PC
@@ -113,7 +108,6 @@ def get_rho_s(rho_6, m_1, gamma_s):
     )
 
 
-# @jit
 def get_rho_6(rho_s, m_1, gamma_s):
     a = 0.2
     r_s = ((3 - gamma_s) * a ** (3 - gamma_s) * m_1 / (2 * pi * rho_s)) ** (1 / 3)
@@ -121,13 +115,11 @@ def get_rho_6(rho_s, m_1, gamma_s):
     return rho_s * (r_6 / r_s) ** -gamma_s
 
 
-# @jit
 def get_xi(gamma_s):
     # Could use that I_x(a, b) = 1 - I_{1-x}(b, a)
     return 1 - betainc(gamma_s - 1 / 2, 3 / 2, 1 / 2)
 
 
-# @jit
 def get_c_f(m_1, m_2, rho_s, gamma_s):
     Lambda = jnp.sqrt(m_1 / m_2)
     M = m_1 + m_2
@@ -144,27 +136,22 @@ def get_c_f(m_1, m_2, rho_s, gamma_s):
     return c_df / c_gw * (G * M / pi ** 2) ** ((11 - 2 * gamma_s) / 6)
 
 
-# @jit
 def get_f_eq(gamma_s, c_f):
     return c_f ** (3 / (11 - 2 * gamma_s))
 
 
-# @jit
 def get_a_v(M_chirp):
     return 1 / 16 * (C ** 3 / (pi * G * M_chirp)) ** (5 / 3)
 
 
-# @jit
 def PhiT(f, params: Binary):
     return 2 * pi * f * t_to_c(f, params) - Phi_to_c(f, params)
 
 
-# @jit
 def Psi(f, params: Binary):
     return 2 * pi * f * params.tT_c - params.Phi_c - pi / 4 - PhiT(f, params)
 
 
-# @jit
 def h_0(f, params: Binary):
     return jnp.where(
         f <= params.f_c,
@@ -175,12 +162,11 @@ def h_0(f, params: Binary):
         * (G * params.M_chirp) ** (5 / 3)
         * f ** (2 / 3)
         / C ** 4
-        * jnp.sqrt(2 * pi / abs(d2Phi_dt2(f, params))),
+        * jnp.sqrt(2 * pi / jnp.abs(d2Phi_dt2(f, params))),
         0.0,
     )
 
 
-# @jit
 def amp(f, params: Binary):
     """
     Amplitude averaged over inclination angle.
@@ -188,17 +174,14 @@ def amp(f, params: Binary):
     return jnp.sqrt(4 / 5) * h_0(f, params) / params.dL
 
 
-# @jit
 def Phi_to_c(f, params: Binary):
     return _Phi_to_c_indef(f, params) - _Phi_to_c_indef(params.f_c, params)
 
 
-# @jit
 def t_to_c(f, params: Binary):
     return _t_to_c_indef(f, params) - _t_to_c_indef(params.f_c, params)
 
 
-# @jit
 def _Phi_to_c_indef(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return _Phi_to_c_indef_v(f, params)
@@ -210,7 +193,6 @@ def _Phi_to_c_indef(f, params: Binary):
         raise ValueError("unrecognized type")
 
 
-# @jit
 def _t_to_c_indef(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return _t_to_c_indef_v(f, params)
@@ -222,7 +204,6 @@ def _t_to_c_indef(f, params: Binary):
         raise ValueError("'params' type is not supported")
 
 
-# @jit
 def d2Phi_dt2(f, params: Binary):
     if isinstance(params, VacuumBinary):
         return d2Phi_dt2_v(f, params)
@@ -235,22 +216,18 @@ def d2Phi_dt2(f, params: Binary):
 
 
 # Vacuum binary
-# @jit
 def _Phi_to_c_indef_v(f, params: VacuumBinary):
     return get_a_v(params.M_chirp) / f ** (5 / 3)
 
 
-# @jit
 def _t_to_c_indef_v(f, params: VacuumBinary):
     return 5 * get_a_v(params.M_chirp) / (16 * pi * f ** (8 / 3))
 
 
-# @jit
 def d2Phi_dt2_v(f, params: VacuumBinary):
     return 12 * pi ** 2 * f ** (11 / 3) / (5 * get_a_v(params.M_chirp))
 
 
-# @jit
 def make_vacuum_binary(
     m_1,
     m_2,
@@ -270,7 +247,9 @@ def hypgeom_scipy(b, z):
     return hyp2f1(1, b, 1 + b, z)
 
 
-def get_hypgeom_interp_pos(n_bs=100, n_zs=750):
+def get_hypgeom_interp_pos(
+    n_bs: int = 100, n_zs: int = 750
+) -> Callable[[Array, Array], Array]:
     bs = jnp.linspace(1.6, 2.0, n_bs)  # gamma_s in [2, 3], gamma_e = 5/2
     log10_abs_zs = jnp.linspace(-8, 7, n_zs)
     zs = -(10 ** log10_abs_zs)
@@ -278,35 +257,31 @@ def get_hypgeom_interp_pos(n_bs=100, n_zs=750):
 
     vals_pos = jnp.log10(jnp.array(hypgeom_scipy(b_mg, z_mg)))
 
-    return lambda b, z: 10 ** interp2d(
-        b, jnp.log10(-z), bs, log10_abs_zs, vals_pos, jnp.nan
-    )
+    cg = CartesianGrid(((bs[0], bs[-1]), (log10_abs_zs[0], log10_abs_zs[-1])), vals_pos)
+    return lambda b, z: 10 ** cg(b, jnp.log10(-z))
 
 
-def get_hypgeom_interp_neg(n_bs=100, n_zs=500):
+def get_hypgeom_interp_neg(
+    n_bs: int = 100, n_zs: int = 2000
+) -> Callable[[Array, Array], Array]:
     bs = jnp.linspace(1.6, 2.0, n_bs)  # gamma_s in [2, 3], gamma_e = 5/2
-    log10_abs_zs = jnp.concatenate(
-        (
-            jnp.linspace(-8, -2.5, 20),
-            jnp.linspace(-2.5, 1.5, n_zs)[1:-1],
-            jnp.linspace(1.5, 7, 20),
-        )
-    )
+    log10_abs_zs = jnp.linspace(-8, 7, n_zs)
     zs = -(10 ** log10_abs_zs)
     b_mg, z_mg = jnp.meshgrid(bs, zs, indexing="ij")
 
     vals_neg = jnp.log10(1 - hypgeom_scipy(-b_mg[::-1, :], z_mg))
 
-    return lambda b, z: 1 - 10 ** interp2d(
-        b, jnp.log10(-z), -bs[::-1], log10_abs_zs, vals_neg, jnp.nan
+    cg = CartesianGrid(
+        ((-bs[-1], -bs[0]), (log10_abs_zs[0], log10_abs_zs[-1])), vals_neg
     )
+    return lambda b, z: 1 - 10 ** cg(b, jnp.log10(-z))
 
 
 interp_pos = get_hypgeom_interp_pos()
 interp_neg = get_hypgeom_interp_neg()
 
 
-def restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
+def restricted_hypgeom(b, z: Array) -> Array:
     # Assumes b is a scalar
     return jax.lax.cond(
         b > 0, lambda z: interp_pos(b, z), lambda z: interp_neg(b, z), z
@@ -314,7 +289,7 @@ def restricted_hypgeom(b, z: jnp.ndarray) -> jnp.ndarray:
 
 
 @jax.jit
-def hypgeom_jax(b, z: jnp.ndarray) -> jnp.ndarray:
+def hypgeom_jax(b, z: Array) -> Array:
     return jax.lax.cond(
         b == 1, lambda z: jnp.log(1 - z) / (-z), lambda z: restricted_hypgeom(b, z), z
     )
@@ -325,19 +300,16 @@ hypgeom = hypgeom_jax
 
 
 # Static
-# @jit
 def get_th_s(gamma_s):
     return 5 / (11 - 2 * gamma_s)
 
 
-# @jit
 def _Phi_to_c_indef_s(f, params: StaticDress):
     x = f / get_f_eq(params.gamma_s, params.c_f)
     th = get_th_s(params.gamma_s)
     return get_a_v(params.M_chirp) / f ** (5 / 3) * hypgeom(th, -(x ** (-5 / (3 * th))))
 
 
-# @jit
 def _t_to_c_indef_s(f, params: StaticDress):
     th = get_th_s(params.gamma_s)
     return (
@@ -348,7 +320,6 @@ def _t_to_c_indef_s(f, params: StaticDress):
     )
 
 
-# @jit
 def d2Phi_dt2_s(f, params: StaticDress):
     return (
         12
@@ -358,7 +329,6 @@ def d2Phi_dt2_s(f, params: StaticDress):
     )
 
 
-# @jit
 def make_static_dress(
     m_1,
     m_2,
@@ -377,7 +347,6 @@ def make_static_dress(
 
 
 # Dynamic
-# @jit
 def get_f_b(m_1, m_2, gamma_s):
     """
     Gets the break frequency for a dynamic dress. This scaling relation was
@@ -397,7 +366,6 @@ def get_f_b(m_1, m_2, gamma_s):
     )
 
 
-# @jit
 def get_f_b_d(params: DynamicDress):
     """
     Gets the break frequency for a dynamic dress using our scaling relation
@@ -408,19 +376,16 @@ def get_f_b_d(params: DynamicDress):
     return get_f_b(m_1, m_2, params.gamma_s)
 
 
-# @jit
 def get_th_d():
     GAMMA_E = 5 / 2
     return 5 / (2 * GAMMA_E)
 
 
-# @jit
 def get_lam(gamma_s):
     GAMMA_E = 5 / 2
     return (11 - 2 * (gamma_s + GAMMA_E)) / 3
 
 
-# @jit
 def get_eta(params: DynamicDress):
     GAMMA_E = 5 / 2
     m_1 = get_m_1(params.M_chirp, params.q)
@@ -436,7 +401,6 @@ def get_eta(params: DynamicDress):
     )
 
 
-# @jit
 def _Phi_to_c_indef_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -453,7 +417,6 @@ def _Phi_to_c_indef_d(f, params: DynamicDress):
     )
 
 
-# @jit
 def _t_to_c_indef_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -493,7 +456,6 @@ def _t_to_c_indef_d(f, params: DynamicDress):
     return coeff * (term_1 + term_2 + term_3 + term_4)
 
 
-# @jit
 def d2Phi_dt2_d(f, params: DynamicDress):
     f_t = get_f_b_d(params)
     x = f / f_t
@@ -523,7 +485,6 @@ def d2Phi_dt2_d(f, params: DynamicDress):
     )
 
 
-# @jit
 def make_dynamic_dress(
     m_1,
     m_2,
@@ -565,21 +526,25 @@ def convert(params: Binary, NewType) -> Binary:
         raise ValueError("invalid conversion")
 
 
-def get_f_range(dd, t_obs):
+def get_f_range(params: Binary, t_obs: float, bracket=None) -> Tuple[float, float]:
     """
     Finds the frequency range [f(-(t_obs + tT_c)), f(-tT_c)].
     """
     # Find frequency t_obs + tT_c before merger
-    bracket = (dd.f_c * 0.001, dd.f_c * 1.1)
-    fn = lambda f_l: (jax.jit(t_to_c)(f_l, dd) - (t_obs + dd.tT_c)) ** 2
+    if bracket is None:
+        bracket = (params.f_c * 0.001, params.f_c * 1.1)
+
+    fn = lambda f_l: (jax.jit(t_to_c)(f_l, params) - (t_obs + params.tT_c)) ** 2
     res = minimize_scalar(fn, bounds=bracket)
-    assert res.success
+    if not res.success:
+        raise RuntimeError(f"finding f_l failed: {res}")
     f_l = res.x
 
     # Find frequency tT_c before merger
-    fn = lambda f_h: (jax.jit(t_to_c)(f_h, dd) - dd.tT_c) ** 2
+    fn = lambda f_h: (jax.jit(t_to_c)(f_h, params) - params.tT_c) ** 2
     res = minimize_scalar(fn, bracket=bracket)
-    assert res.success
+    if not res.success:
+        raise RuntimeError(f"finding f_h failed: {res}")
     f_h = res.x
 
     return (f_l, f_h)

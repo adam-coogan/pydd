@@ -1,6 +1,3 @@
-from functools import partial
-
-from jax import jit
 import jax.numpy as jnp
 
 from .binary import Binary, Psi, amp
@@ -12,7 +9,6 @@ SNR, likelihood and match functions.
 """
 
 
-# @partial(jit, static_argnums=(0, 3, 4))
 def simps(f, a, b, N, log):
     """
     Stolen from: https://jax-cosmo.readthedocs.io/en/latest/_modules/jax_cosmo/scipy/integrate.html
@@ -51,13 +47,11 @@ def simps(f, a, b, N, log):
         return simps(x_times_f, jnp.log(a), jnp.log(b), N, False)
 
 
-# @partial(jit, static_argnames="S_n")
 def calculate_SNR(params: Binary, fs, S_n=S_n_LISA):
     integrand = amp(fs, params) ** 2 / S_n(fs)
     return jnp.sqrt(4 * jnp.trapz(integrand, fs))
 
 
-# @partial(jit, static_argnames="S_n")
 def calculate_match_unnormd(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value.
@@ -67,7 +61,6 @@ def calculate_match_unnormd(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA
     return jnp.abs(4 * jnp.trapz(wf_h.conj() * wf_d / S_n(fs), fs))
 
 
-# @partial(jit, static_argnames="S_n")
 def loglikelihood(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
@@ -143,7 +136,6 @@ def get_match_pads(fs):
     return pad_low, pad_high
 
 
-# @partial(jit, static_argnames="S_n")
 def calculate_match_unnormd_fft(
     params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n=S_n_LISA
 ):
@@ -163,7 +155,6 @@ def calculate_match_unnormd_fft(
     return jnp.abs(len(integrand_padded) * jnp.fft.ifft(integrand_padded)).max()
 
 
-# @partial(jit, static_argnames="S_n")
 def loglikelihood_fft(
     params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n=S_n_LISA
 ):
