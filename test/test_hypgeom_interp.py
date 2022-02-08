@@ -1,3 +1,5 @@
+import time
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -17,8 +19,18 @@ def test_hypgeom():
     rtol = 1e-4
     bs = np.random.rand(n) * (2 - 1.6) + 1.6
     zs = jnp.array(-(10 ** (np.random.rand(n) * (7 + 8) - 8)))
+
+    t_start = time.time()
     vals_scipy = jnp.array(hypgeom_scipy(bs, zs))
-    vals_jax = jax.vmap(hypgeom_jax, in_axes=(0, 0))(bs, zs)
+    t_end = time.time()
+    print(f"scipy timing: {t_end - t_start}")
+
+    jax.vmap(hypgeom_jax, in_axes=(0, 0))(bs[:5], zs[:5]).block_until_ready()
+    t_start = time.time()
+    vals_jax = jax.vmap(hypgeom_jax, in_axes=(0, 0))(bs, zs).block_until_ready()
+    t_end = time.time()
+    print(f"jax timing: {t_end - t_start}")
+
     return jnp.allclose(vals_scipy, vals_jax, rtol=rtol, atol=0)
 
 
@@ -43,3 +55,6 @@ def test_hypgeom():
 #     v_scipy = hypgeom_scipy(bs, -(10 ** log10_abs_zs))
 #     v_jax = jax.lax.map(lambda args: hypgeom_jax(*args), (bs, -(10 ** log10_abs_zs)))
 #     assert jnp.allclose(v_scipy, v_jax, rtol=1e-4)
+
+if __name__ == "__main__":
+    test_hypgeom()

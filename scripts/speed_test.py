@@ -5,7 +5,12 @@ import jax.numpy as jnp
 import numpy as np
 from scipy.optimize import root_scalar
 
-from pydd.analysis import calculate_SNR_cut, loglikelihood_cut
+from pydd.analysis import (
+    calculate_SNR_cut,
+    get_match_pads,
+    loglikelihood_cut,
+    loglikelihood_fft,
+)
 from pydd.binary import *
 from pydd.noise import *  # type: ignore
 
@@ -86,8 +91,9 @@ def ll_cut_fn(dd_h, f_range_h):
 def sample_Mc_tTc() -> Array:
     return jnp.array(
         [
-            M_CHIRP / MSUN * (1 + 6e-8 * (np.random.rand(1) - 0.5)),
-            0.0004 * (np.random.rand(1) - 0.5),
+            # M_CHIRP / MSUN * (1 + 6e-8 * (np.random.rand() - 0.5)),
+            M_CHIRP / MSUN * (1 + 1.25e-7 * 2 * (np.random.rand() - 0.5)),
+            0.0004 * (np.random.rand() - 0.5),
         ]
     )
 
@@ -112,21 +118,28 @@ def ll_nomax_fn(x: Array) -> Array:
     return ll_cut_fn(dd_h, f_range_h)
 
 
-print("Without tT_c maximization")
-print("compiling and evaluating:", ll_nomax_fn(sample_Mc_tTc()))
+# print("Without tT_c maximization")
+# print("compiling and evaluating:", ll_nomax_fn(sample_Mc_tTc()))
 
-n_loops = 10
-t_start = time.time()
-for _ in range(n_loops):
-    ll_nomax_fn(sample_Mc_tTc()).block_until_ready()  # type: ignore
-print((time.time() - t_start) / n_loops)
+# n_loops = 10
+# t_start = time.time()
+# for _ in range(n_loops):
+#     ll_nomax_fn(sample_Mc_tTc()).block_until_ready()  # type: ignore
+# print((time.time() - t_start) / n_loops)
 
 
 def sample_Mc() -> Array:
-    return jnp.array([M_CHIRP / MSUN * (1 + 6e-8 * (np.random.rand(1) - 0.5))])
+    return jnp.array(
+        [
+            # M_CHIRP / MSUN * (1 + 6e-8 * (np.random.rand(1) - 0.5)),
+            M_CHIRP
+            / MSUN
+            * (1 + 1.25e-7 * 2 * (np.random.rand() - 0.5)),
+        ]
+    )
 
 
-def ll_fn(x: Array) -> Array:
+def ll_fn(x: Array) -> Tuple[Array, Array]:
     """
     Log-likelihood with tT_c maximization.
     """
@@ -146,14 +159,37 @@ def ll_fn(x: Array) -> Array:
     bracket = (jnp.array(-1e-3), jnp.array(1e-3))
     res = minimize_scalar(_nll, bracket=bracket)
     assert res.success, f"tT_c maximization failed: {res}"
-    return res.fun
+    return -res.fun, res.x
 
 
 print("With tT_c maximization")
-print("compiling and evaluating:", ll_fn(sample_Mc_tTc()))
+Mc = sample_Mc_tTc()[0]
+ll, tT_c = ll_fn(jnp.array([Mc]))
+dd_h = unpack(jnp.array([Mc, tT_c]))
+print("compiling and evaluating:", ll)
+print(Mc, tT_c)
+print(get_f_range(dd_h, T_OBS))
+print(F_RANGE_D)
+print()
 
-n_loops = 10
-t_start = time.time()
-for _ in range(n_loops):
-    ll_fn(sample_Mc()).block_until_ready()  # type: ignore
-print((time.time() - t_start) / n_loops)
+# n_loops = 10
+# t_start = time.time()
+# for _ in range(n_loops):
+#     ll_fn(sample_Mc()).block_until_ready()  # type: ignore
+# print((time.time() - t_start) / n_loops)
+
+print("FFT")
+FS = jnp.linspace(*F_RANGE_D, 100_000)
+PAD_LOW, PAD_HIGH = get_match_pads(FS)
+dd_h = unpack(jnp.array([Mc, 0.0]))
+ll_fft = loglikelihood_fft(dd_h, DD_D, FS, PAD_LOW, PAD_HIGH, S_n)
+print(ll, ll_fft)
+print()
+
+print("More random checks")
+for _ in range(100):
+    Mc = sample_Mc_tTc()[0]
+    ll_max = ll_fn(jnp.array([Mc]))
+    dd_h = unpack(jnp.array([Mc, 0.0]))
+    ll_fft = loglikelihood_fft(dd_h, DD_D, FS, PAD_LOW, PAD_HIGH, S_n)
+    print(f"{ll_max[0]:.3f}, {ll_fft:.3f}")

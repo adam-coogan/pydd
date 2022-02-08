@@ -36,6 +36,7 @@ def test_SNR_loglikelihood(verbose=False):
         jnp.array(dd_s.dL),
         f_c_h,
     )
+    print(dd_s)
 
     fs = jnp.linspace(f_l, f_h, 3000)
     snr_s = calculate_SNR(dd_s, fs).block_until_ready()
