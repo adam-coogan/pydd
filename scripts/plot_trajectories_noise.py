@@ -2,57 +2,80 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pydd.analysis import *
 from pydd.binary import *
+from pydd.analysis import *
+from pydd.noise import (
+    S_n_aLIGO,
+    S_n_ce,
+    S_n_et,
+    S_n_LISA,
+)
 
-
-def load_S_n(filename):
-    _fs, _sqrt_S_ns = np.loadtxt(filename, unpack=True)
-    idxs = jnp.where(~jnp.isnan(_sqrt_S_ns))[0]
-    return jax.jit(lambda f: jnp.interp(f, _fs, _sqrt_S_ns ** 2, jnp.inf, jnp.inf)), (
-        _fs[idxs[0]],
-        _fs[idxs[-1]],
-    )
-
+rho_6_pbh = jnp.array(0.5345 * 1e16 * (MSUN / PC ** 3))
+gamma_s_pbh = jnp.array(9 / 4)
+fs = jnp.geomspace(1e-4, 1e4, 1000)
 
 if __name__ == "__main__":
-    rho_s_pbh = 1.798e4 * MSUN / PC ** 3
-    gamma_s_pbh = 9 / 4
-
-    S_n_aLIGO, f_range_aLIGO = load_S_n("data/aLIGO.dat")
-    S_n_ce, f_range_ce = load_S_n("data/ce.dat")
-    S_n_et, f_range_et = load_S_n("data/et.dat")
-
-    fs = jnp.geomspace(1e-4, 1e4, 1000)
-
     plt.figure(figsize=(6, 4))
     plt.plot(fs, jnp.sqrt(fs * S_n_aLIGO(fs)), label="aLIGO")
     plt.plot(fs, jnp.sqrt(fs * S_n_ce(fs)), label="CE")
     plt.plot(fs, jnp.sqrt(fs * S_n_et(fs)), label="ET")
     plt.plot(fs, jnp.sqrt(fs * S_n_LISA(fs)), label="LISA")
 
-    # Light PBH IMRI
-    m_1 = 1 * MSUN
-    m_2 = 1e-3 * MSUN
-    vb = make_vacuum_binary(m_1, m_2)
-    idxs = (fs < get_f_isco(m_1)) & (t_to_c(fs, vb) < 1 * YR)
-    plt.plot(fs[idxs], (2 * fs * amp(fs, vb))[idxs], "k")
+    # IMRI
+    m_1 = jnp.array(1e3 * MSUN)
+    m_2 = jnp.array(1.4 * MSUN)
+    dd = DynamicDress(
+        gamma_s_pbh,
+        rho_6_pbh,
+        get_M_chirp(m_1, m_2),
+        m_2 / m_1,
+        jnp.array(0.0),
+        jnp.array(0.0),
+        jnp.array(76e6 * PC),  # gives SNR of 15 at LISA for t_obs = 5 yr
+        get_f_isco(m_1),
+    )
+    t_obs = 5 * YR
+    idxs = (fs < get_f_isco(m_1)) & (t_to_c(fs, dd) < t_obs)
+    plt.plot(fs[idxs], (2 * fs * amp(fs, dd))[idxs], "k")
     f_b = get_f_b(m_1, m_2, gamma_s_pbh)
-    plt.scatter(f_b, 2 * f_b * amp(f_b, vb), c="k", s=20)
+    plt.scatter(f_b, 2 * f_b * amp(f_b, dd), c="k", s=20)
     plt.text(
-        1e-2, 3e-23, r"$(m_1,\, m_2) = (1,\, 10^{-3})\, \mathrm{M}_\odot$", fontsize=8.5
+        1e-2,
+        7e-20,
+        r"$(m_1,\, m_2,\, d_L) =$"
+        "\n"
+        r"$(10^3\, \mathrm{M}_\odot,\, 1.4\, \mathrm{M}_\odot,\, 76\, \mathrm{Mpc})$",
+        fontsize=8,
+        ha="center",
     )
 
-    # IMRI
-    m_1 = 1e3 * MSUN
-    m_2 = 1.4 * MSUN
-    vb = make_vacuum_binary(m_1, m_2)
-    idxs = (fs < get_f_isco(m_1)) & (t_to_c(fs, vb) < 5 * YR)
-    plt.plot(fs[idxs], (2 * fs * amp(fs, vb))[idxs], "k")
+    # Light PBH IMRI
+    m_1 = jnp.array(1 * MSUN)
+    m_2 = jnp.array(1e-3 * MSUN)
+    dd = DynamicDress(
+        gamma_s_pbh,
+        rho_6_pbh,
+        get_M_chirp(m_1, m_2),
+        m_2 / m_1,
+        jnp.array(0.0),
+        jnp.array(0.0),
+        jnp.array(302e6 * PC),  # gives SNR of 12 at CE for t_obs = 1 yr
+        get_f_isco(m_1),
+    )
+    t_obs = 1 * YR
+    idxs = (fs < get_f_isco(m_1)) & (t_to_c(fs, dd) < t_obs)
+    plt.plot(fs[idxs], (2 * fs * amp(fs, dd))[idxs], "k")
     f_b = get_f_b(m_1, m_2, gamma_s_pbh)
-    plt.scatter(f_b, 2 * f_b * amp(f_b, vb), c="k", s=20)
+    plt.scatter(f_b, 2 * f_b * amp(f_b, dd), c="k", s=20)
     plt.text(
-        6e-4, 5e-20, r"$(m_1,\, m_2) = (10^3,\, 1.4)\, \mathrm{M}_\odot$", fontsize=8.5
+        2e-1,
+        5e-24,
+        r"$(m_1,\, m_2,\, d_L) =$"
+        "\n"
+        r"$(1\, \mathrm{M}_\odot,\, 10^{-3}\, \mathrm{M}_\odot,\, 302\, \mathrm{Mpc})$",
+        fontsize=8,
+        ha="center",
     )
 
     plt.ylim(5e-25, 1e-17)
@@ -60,6 +83,6 @@ if __name__ == "__main__":
     plt.ylabel("Characteristic strain")
     plt.loglog()
     plt.legend(frameon=False)
-
     plt.tight_layout()
+
     plt.savefig("figures/trajectories-and-noise.pdf")
