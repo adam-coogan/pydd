@@ -47,12 +47,12 @@ def simps(f, a, b, N, log):
         return simps(x_times_f, jnp.log(a), jnp.log(b), N, False)
 
 
-def calculate_SNR(params: Binary, fs, S_n=S_n_LISA):
+def calculate_SNR(params: Binary, fs, S_n):
     integrand = amp(fs, params) ** 2 / S_n(fs)
     return jnp.sqrt(4 * jnp.trapz(integrand, fs))
 
 
-def calculate_match_unnormd(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
+def calculate_match_unnormd(params_h: Binary, params_d: Binary, fs, S_n):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value.
     """
@@ -61,7 +61,7 @@ def calculate_match_unnormd(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA
     return jnp.abs(4 * jnp.trapz(wf_h.conj() * wf_d / S_n(fs), fs))
 
 
-def loglikelihood(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
+def loglikelihood(params_h: Binary, params_d: Binary, fs, S_n):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
     maximized over the distance to the binary and Phi_c.
@@ -76,7 +76,7 @@ def loglikelihood(params_h: Binary, params_d: Binary, fs, S_n=S_n_LISA):
     return 1 / 2 * ip_hd ** 2 / ip_hh
 
 
-def calculate_SNR_cut(params: Binary, f_range, fs, S_n=S_n_LISA):
+def calculate_SNR_cut(params: Binary, f_range, fs, S_n):
     integrand = jnp.where(
         (fs >= f_range[0]) & (fs <= f_range[1]), amp(fs, params) ** 2 / S_n(fs), 0.0
     )
@@ -84,7 +84,7 @@ def calculate_SNR_cut(params: Binary, f_range, fs, S_n=S_n_LISA):
 
 
 def calculate_match_unnormd_cut(
-    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n=S_n_LISA
+    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n
 ):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value.
@@ -105,7 +105,7 @@ def calculate_match_unnormd_cut(
 
 
 def loglikelihood_cut(
-    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n=S_n_LISA
+    params_h: Binary, params_d: Binary, f_range_h, f_range_d, fs, S_n
 ):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
@@ -137,7 +137,7 @@ def get_match_pads(fs):
 
 
 def calculate_match_unnormd_fft(
-    params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n=S_n_LISA
+    params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n
 ):
     """
     Inner product of waveforms, maximized over Phi_c by taking absolute value
@@ -156,7 +156,7 @@ def calculate_match_unnormd_fft(
 
 
 def loglikelihood_fft(
-    params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n=S_n_LISA
+    params_h: Binary, params_d: Binary, fs, pad_low, pad_high, S_n
 ):
     """
     Log-likelihood for a signal from a binary params_d modeled using params_h,
