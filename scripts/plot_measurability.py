@@ -34,7 +34,8 @@ labels = (
     r"$\mathcal{M}$ [M$_\odot$]",
     r"$\log_{10} q$",
 )
-quantiles_2d = [1 - np.exp(-(x ** 2) / 2) for x in [1, 2, 3]]
+quantiles_2d = [1 - np.exp(-(x ** 2) / 2) for x in [1, 2, 3]]  # what's published
+# quantiles_2d = [0.6827, 0.9545, 0.9973]  # what the paper caption says
 smooth = 0.01
 
 
