@@ -18,8 +18,8 @@ fs = jnp.geomspace(1e-4, 1e4, 1000)
 if __name__ == "__main__":
     plt.figure(figsize=(6, 4))
     plt.plot(fs, jnp.sqrt(fs * S_n_aLIGO(fs)), label="aLIGO")
-    plt.plot(fs, jnp.sqrt(fs * S_n_ce(fs)), label="CE")
     plt.plot(fs, jnp.sqrt(fs * S_n_et(fs)), label="ET")
+    plt.plot(fs, jnp.sqrt(fs * S_n_ce(fs)), label="CE")
     plt.plot(fs, jnp.sqrt(fs * S_n_LISA(fs)), label="LISA")
 
     # IMRI
