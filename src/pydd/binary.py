@@ -94,8 +94,9 @@ def get_r_isco(m_1):
 
 
 # @jit
-def get_f_isco(m_1):
-    return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
+def get_f_isco(m_1, m_2):
+    return jnp.sqrt(G * (m_1 + m_2) / get_r_isco(m_1) ** 3) / pi
+    #return jnp.sqrt(G * m_1 / get_r_isco(m_1) ** 3) / pi
 
 
 # @jit
@@ -260,7 +261,7 @@ def make_vacuum_binary(
 ) -> VacuumBinary:
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    f_c = get_f_isco(m_1)
+    f_c = get_f_isco(m_1, m_2)
     return VacuumBinary(M_chirp, Phi_c, tT_c, dL, f_c)
 
 
@@ -362,7 +363,7 @@ def make_static_dress(
     c_f = get_c_f(m_1, m_2, rho_s, gamma_s)
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    f_c = get_f_isco(m_1)
+    f_c = get_f_isco(m_1, m_2)
     return StaticDress(gamma_s, c_f, M_chirp, Phi_c, tT_c, dL, f_c)
 
 
@@ -525,7 +526,7 @@ def make_dynamic_dress(
 ) -> DynamicDress:
     M_chirp = get_M_chirp(m_1, m_2)
     tT_c = jnp.array(0.0) if t_c is None else t_c + dL / C
-    f_c = get_f_isco(m_1)
+    f_c = get_f_isco(m_1, m_2)
     return DynamicDress(gamma_s, rho_6, M_chirp, m_2 / m_1, Phi_c, tT_c, dL, f_c)
 
 
