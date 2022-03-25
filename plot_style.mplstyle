@@ -1,0 +1,5 @@
+xtick.direction : in
+ytick.direction : in
+text.usetex : True
+font.family : serif
+legend.frameon : False

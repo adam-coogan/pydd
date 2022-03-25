@@ -1,5 +1,5 @@
 from math import pi
-from typing import Callable, NamedTuple, Tuple, Union
+from typing import Callable, NamedTuple, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +7,7 @@ from jax.scipy.special import betainc
 from scipy.optimize import minimize_scalar
 from scipy.special import hyp2f1
 
-from .utils import CartesianGrid
+from .cartesiangrid import CartesianGrid
 
 
 Array = jnp.ndarray
@@ -28,7 +28,13 @@ G = 6.67408e-11  # m^3 s^-2 kg^-1
 C = 299792458.0  # m/s
 MSUN = 1.98855e30  # kg
 PC = 3.08567758149137e16  # m
-YR = 365.25 * 24 * 3600  # s
+SECOND = 1
+MINUTE = 60
+HOUR = 60 * MINUTE
+DAY = 24 * HOUR
+WEEK = 7 * DAY
+MONTH = 4 * WEEK
+YR = 365.25 * DAY
 
 
 class VacuumBinary(NamedTuple):
@@ -73,6 +79,13 @@ class DynamicDress(NamedTuple):
 
 
 Binary = Union[VacuumBinary, StaticDress, DynamicDress]
+
+
+GAMMA_S_PBH = jnp.array(9 / 4)
+
+
+def get_rho_6_pbh(m_1):
+    return 1.396e13 * (m_1 / MSUN) ** (3 / 4) * MSUN / PC ** 3
 
 
 def get_M_chirp(m_1, m_2):
@@ -500,7 +513,7 @@ def make_dynamic_dress(
     return DynamicDress(gamma_s, rho_6, M_chirp, m_2 / m_1, Phi_c, tT_c, dL, f_c)
 
 
-def convert(params: Binary, NewType) -> Binary:
+def convert(params: Binary, NewType: Type[Binary]) -> Binary:
     """
     Change binary's type by dropping attributes.
     """
