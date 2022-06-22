@@ -4,10 +4,13 @@ except ImportError:
     # Try backported to PY<37 `importlib_resources`.
     import importlib_resources as pkg_resources
 
+from typing import Callable, Tuple
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from . import noise_resources
+from .utils import Array
 
 """
 Noise PSDs.
@@ -16,7 +19,7 @@ Noise PSDs.
 
 f_range_LISA = (2e-5, 1.0)  # Hz, from LISA Science Requirements fig. 1
 
-def S_n_LISA(f):
+def S_n_LISA(f: Array) -> Array:
     """
     LISA noise PSD, averaged over sky position and polarization angle.
 
@@ -35,7 +38,7 @@ def S_n_LISA(f):
     )
 
 
-def load_S_n(name):
+def load_S_n(name: str) -> Tuple[Callable[[Array], Array], Tuple[float, float]]:
     path_context = pkg_resources.path(noise_resources, f"{name}.dat")
     with path_context as path:
         _fs, _sqrt_S_ns = np.loadtxt(path, unpack=True)

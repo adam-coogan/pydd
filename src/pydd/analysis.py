@@ -1,7 +1,6 @@
 import jax.numpy as jnp
 
 from .binary import Binary, Psi, amp
-from .noise import S_n_LISA
 
 
 """
