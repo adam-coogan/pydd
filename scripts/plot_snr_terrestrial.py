@@ -8,6 +8,13 @@ from pydd.analysis import calculate_SNR
 from pydd.binary import MSUN, PC, VacuumBinary, WEEK, get_M_chirp, get_f_range
 from pydd.noise import S_n_aLIGO, S_n_ce, S_n_et, f_range_aLIGO, f_range_ce, f_range_et
 
+"""
+Plots SNRs for GR-in-vacuum binaries as a function of chirp mass and luminosity
+distance.
+
+Produces `../figures/snrs-aligo-ce-et-week.pdf`.
+"""
+
 T_OBS = 1 * WEEK
 SNR_THRESH = 12.0
 
@@ -93,6 +100,6 @@ if __name__ == "__main__":
     axs[2].set_title("Cosmic Explorer")
 
     fig.tight_layout()
-    figpath = "figures/snrs-aligo-ce-et-week.pdf"
+    figpath = "../figures/snrs-aligo-ce-et-week.pdf"
     fig.savefig(figpath)
     print(f"Saved figure to {figpath}")

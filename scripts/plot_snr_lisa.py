@@ -7,12 +7,13 @@ import jax.numpy as jnp
 
 from pydd.analysis import calculate_SNR
 from pydd.binary import *
+from pydd.noise import S_n_LISA, f_range_LISA
 
 """
 Plots SNRs for GR-in-vacuum binaries as a function of chirp mass and luminosity
 distance.
 
-Produces `figures/snrs.pdf`.
+Produces `../figures/snrs-lisa.pdf`.
 """
 
 if __name__ == "__main__":
@@ -40,7 +41,7 @@ if __name__ == "__main__":
             ).root
             f_ls[i, j] = f_l
             fs = jnp.linspace(f_l, f_c, 3000)
-            snrs[i, j] = calculate_SNR(dd_v, fs)
+            snrs[i, j] = calculate_SNR(dd_v, fs, S_n_LISA)
 
     plt.figure(figsize=(4, 3.5))
 
@@ -70,4 +71,4 @@ if __name__ == "__main__":
     plt.ylabel(r"$d_L$ [Mpc]")
     plt.tight_layout()
 
-    plt.savefig("figures/snrs.pdf")
+    plt.savefig("../figures/snrs-lisa.pdf")
