@@ -67,7 +67,7 @@ def main():
         f_low = get_target_pbh_dynamicdress(
             m_1, m_2, t_obs, 15.0, S_n_ce, f_range_ce
         )[1][0]
-        ax.axvline(f_low, color="k", linewidth=0.5)
+        ax.axvline(f_low, color="k", linewidth=0.5, linestyle="--")
         f_lows.append(f_low)
     ax.text(
         2e-1,
