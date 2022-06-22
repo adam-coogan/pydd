@@ -13,6 +13,7 @@ from pydd.binary import (
     make_dynamic_dress,
     t_to_c,
 )
+from pydd.noise import S_n_LISA
 
 """
 Useful definitions shared among scripts.
@@ -50,7 +51,7 @@ def get_loglikelihood_fn(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
         dd_h = DynamicDress(
             gamma_s, rho_6, M_chirp, q, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, f_c
         )
-        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
+        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high, S_n_LISA)
 
     return _ll
 
@@ -79,7 +80,7 @@ def get_loglikelihood_fn_v(dd_s, f_l=f_l, f_h=f_h, n_f=n_f):
 
     def _ll(x):
         dd_h = VacuumBinary(x[0] * MSUN, dd_s.Phi_c, dd_s.tT_c, dd_s.dL, dd_s.f_c)
-        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high)
+        return loglikelihood_fft(dd_h, dd_s, fs, pad_low, pad_high, S_n_LISA)
 
     return _ll
 
