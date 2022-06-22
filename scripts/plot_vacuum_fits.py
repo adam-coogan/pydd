@@ -13,10 +13,9 @@ from utils import RHO_6_ASTRO, RHO_6_PBH, rho_6_to_rho6T
 """
 Plots various measures of the discoverability of dark dresses.
 
-Requires `vacuum_fits/vacuum_fits.npz`, which is produced by
-`calc_vacuum_fits.py`.
+Requires `vacuum_fits/vacuum_fits.npz`, which is produced by `calc_vacuum_fits.py`.
 
-Produces `figures/vacuum_fits.pdf`.
+Produces `../figures/discoverability-lisa.pdf`.
 """
 
 
@@ -187,7 +186,7 @@ def run(path, rho_s):
             ax.clabel(cs, inline=True, fontsize=8, fmt=r"$10^{%i}$")
 
     fig.tight_layout()
-    fig.savefig(f"figures/{os.path.splitext(path)[0]}.pdf")
+    fig.savefig(f"../figures/discoverability-lisa.pdf")
 
 
 if __name__ == "__main__":

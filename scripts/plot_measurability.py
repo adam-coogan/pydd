@@ -25,7 +25,7 @@ Requires `ns/rho_6T=0.5448_gamma_s=2.33333.pkl` and
 `ns/rho_6T=0.5345_gamma_s=2.25.pkl`, which are produced by
 `job_measurability.sh`.
 
-Produces `figures/ns-astro.pdf` and `figures/ns-pbh.pdf`
+Produces `../figures/ns-astro-lisa.pdf` and `../figures/ns-pbh-lisa.pdf`
 """
 
 labels = (
@@ -78,7 +78,7 @@ def plot_astro():
         fontsize=12,
     )
     cfig.tight_layout(pad=0.2)
-    cfig.savefig(os.path.join("figures", f"ns-astro.pdf"))
+    cfig.savefig(os.path.join("..", "figures", f"ns-astro-lisa.pdf"))
 
 
 def plot_pbh():
@@ -116,7 +116,7 @@ def plot_pbh():
         fontsize=12,
     )
     cfig.tight_layout(pad=0.2)
-    cfig.savefig(os.path.join("figures", f"ns-pbh.pdf"))
+    cfig.savefig(os.path.join("..", "figures", f"ns-pbh-lisa.pdf"))
 
 
 if __name__ == "__main__":

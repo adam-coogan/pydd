@@ -67,4 +67,4 @@ if __name__ == "__main__":
     ax.legend(frameon=False)
 
     fig.tight_layout()
-    fig.savefig("figures/dephasing.pdf")
+    fig.savefig("../figures/dephasing.pdf")

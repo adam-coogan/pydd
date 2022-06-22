@@ -18,7 +18,7 @@ systems.
 
 Requires `fb_fits/fb_fits.npz`, which is produced by `fit_fb.py`.
 
-Produces `figures/f_b-scaling.pdf`.
+Produces `../figures/f_b-scaling.pdf`.
 """
 
 
@@ -176,4 +176,4 @@ if __name__ == "__main__":
     )
 
     fig.tight_layout()
-    fig.savefig("figures/f_b-scaling.pdf")
+    fig.savefig("../figures/f_b-scaling.pdf")
