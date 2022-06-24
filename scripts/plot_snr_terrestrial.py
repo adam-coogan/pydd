@@ -7,6 +7,7 @@ from tqdm.auto import tqdm
 from pydd.analysis import calculate_SNR
 from pydd.binary import MSUN, PC, VacuumBinary, WEEK, get_M_chirp, get_f_range
 from pydd.noise import S_n_aLIGO, S_n_ce, S_n_et, f_range_aLIGO, f_range_ce, f_range_et
+from pydd.utils import get_target_pbh_dynamicdress
 
 """
 Plots SNRs for GR-in-vacuum binaries as a function of chirp mass and luminosity
@@ -38,6 +39,17 @@ def get_snrs(M_chirps, dLs, S_n, f_range_n):
 
 
 if __name__ == "__main__":
+    # Distances at which systems have SNR of 12 over last year of inspiral
+    MPC = 1e6 * PC
+    dL_12s = [
+        get_target_pbh_dynamicdress(
+            1 * MSUN, 1e-3 * MSUN, T_OBS, SNR_THRESH, S_n, f_range_n
+        )[0].dL
+        for S_n, f_range_n in zip(
+            [S_n_aLIGO, S_n_et, S_n_ce], [f_range_aLIGO, f_range_et, f_range_ce]
+        )
+    ]
+
     M_chirps = jnp.geomspace(1e-4 * MSUN, 1 * MSUN, 40)
     dLs = jnp.geomspace(1e6 * PC, 1e9 * PC, 35)
 
@@ -50,9 +62,7 @@ if __name__ == "__main__":
 
     fig, axs = plt.subplots(1, 3, figsize=(10, 3.5))
 
-    # Distances at which systems have SNR of 12 over last year of inspiral
-    MPC = 1e6 * PC
-    dL_12s = [6.5 * MPC, 102 * MPC, 302 * MPC]
+    # dL_12s = [6.5 * MPC, 102 * MPC, 302 * MPC]
     # Contour label positions
     manuals = [
         [(3e-4, 3e2), (1e-3, 7e1), (6e-3, 3e1), (7e-2, 4e0), (6e-1, 1.5e0)],
