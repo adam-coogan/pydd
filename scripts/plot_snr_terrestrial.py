@@ -16,6 +16,7 @@ distance.
 Produces `../figures/snrs-aligo-ce-et-week.pdf`.
 """
 
+plt.style.use("../plot_style.mplstyle")
 T_OBS = 1 * WEEK
 SNR_THRESH = 12.0
 
@@ -49,6 +50,7 @@ if __name__ == "__main__":
             [S_n_aLIGO, S_n_et, S_n_ce], [f_range_aLIGO, f_range_et, f_range_ce]
         )
     ]
+    print("Distances giving SNR of 12 [Mpc]:", [d / MPC for d in dL_12s])
 
     M_chirps = jnp.geomspace(1e-4 * MSUN, 1 * MSUN, 40)
     dLs = jnp.geomspace(1e6 * PC, 1e9 * PC, 35)
@@ -62,12 +64,11 @@ if __name__ == "__main__":
 
     fig, axs = plt.subplots(1, 3, figsize=(10, 3.5))
 
-    # dL_12s = [6.5 * MPC, 102 * MPC, 302 * MPC]
     # Contour label positions
     manuals = [
         [(3e-4, 3e2), (1e-3, 7e1), (6e-3, 3e1), (7e-2, 4e0), (6e-1, 1.5e0)],
-        [(2e-4, 6e2), (4e-4, 1.5e2), (7e-3, 2e1), (6e-2, 1e1), (2e-1, 2e0), (1e0, 1e0)],
-        [(3e-4, 3e2), (2e-3, 1.5e2), (3e-2, 4e1), (1e-1, 7e0), (5e-1, 2e0), (1e0, 1e0)],
+        [(2e-4, 6e2), (3e-4, 3e2), (2e-3, 1.5e2), (3e-2, 4e1), (1e-1, 7e0), (5e-1, 2e0)],
+        [(2e-4, 6e2), (3e-4, 3e2), (1e-3, 1.5e2), (2e-2, 5e1), (5e-2, 8e0), (2e-1, 3e0), (9e-1, 1.1e0)],
     ]
 
     for i, (ax, snrs, dL_12, manual) in enumerate(
@@ -97,7 +98,7 @@ if __name__ == "__main__":
             levels=[SNR_THRESH],
             colors=["r"],
         )
-        ax.clabel(cs, inline=True, fontsize=10, fmt=r"%g", manual=[(2e-3, 3e1)])
+        ax.clabel(cs, inline=True, fontsize=10, fmt=r"%g", manual=[(2e-3, 6e1)])
 
         ax.axvline(get_M_chirp(1, 1e-3), color="r", linestyle="-")
         ax.axhline(dL_12 / MPC, color=f"C{i}", linestyle="-")  # aLIGO

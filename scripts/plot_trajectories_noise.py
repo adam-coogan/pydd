@@ -53,7 +53,7 @@ def main():
     # Light PBH IMRI
     m_1 = 1 * MSUN
     m_2 = 1e-3 * MSUN
-    t_obs = 1 * YR
+    t_obs = 1 * WEEK
     dd, f_range_d = get_target_pbh_dynamicdress(
         m_1, m_2, t_obs, 15.0, S_n_ce, f_range_ce
     )
@@ -95,7 +95,7 @@ def main():
     ax_top.set_xticklabels(["Y", "M", "W", "D"], fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("figures/trajectories-and-noise.pdf")
+    plt.savefig("../figures/trajectories-and-noise.pdf")
 
 
 if __name__ == "__main__":
